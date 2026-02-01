@@ -82,9 +82,7 @@ matecheck/
 │   │   ├── mod.rs              # Module declaration
 │   │   ├── client.rs           # Google Calendar API client
 │   │   └── types.rs            # Calendar event types
-│   ├── matcher/
-│   │   ├── mod.rs
-│   │   └── friend_matcher.rs   # Logic to match events to friends
+│   ├── matcher.rs              # Logic to match events to friends
 │   ├── reminder/
 │   │   ├── mod.rs
 │   │   └── engine.rs           # Determine who needs reminders
@@ -102,16 +100,20 @@ matecheck/
 
 ```yaml
 friends:
-  - name: "Alice"
-    email: "alice@example.com"
-    telegram_username: "alice_tg"  # For generating chat links
+  - id: "alice"                      # Unique identifier (required)
+    name: "Alice"
+    email: "alice@example.com"       # Optional - for calendar matching
+    telegram_username: "alice_tg"    # Optional - for sending reminders
     frequency_days: 30
 
-  - name: "Bob"
-    email: "bob@example.com"
-    telegram_username: "bob_tg"
+  - id: "bob_jones"
+    name: "Bob Jones"
+    email: ~                         # Optional - can be omitted
+    telegram_username: ~             # Optional - can be omitted
     frequency_days: 14
 ```
+
+**Note**: All friend IDs must be unique. Validation is performed when loading config.
 
 ## Step-by-Step Implementation Plan
 
@@ -160,14 +162,19 @@ friends:
 ### Phase 3: Friend Matching Logic
 **Goal**: Match calendar events to friends
 
-7. **Step 3.1: Matcher Module**
-   - Create `src/matcher/mod.rs` and `friend_matcher.rs`
-   - Implement email-based matching
-   - Implement title-based matching (fallback)
-   - Learning: Strings, pattern matching, Option types
+7. **Step 3.1: Matcher Module** ✅ COMPLETE
+   - Created `src/matcher.rs` (flat structure, not nested modules)
+   - Implemented email-based matching (handles optional emails)
+   - Implemented title-based matching (case-insensitive fallback)
+   - Optimized `find_matches()` to skip email checks when no attendees
+   - Refactored `Friend` struct: added `id` field, made email/telegram optional
+   - Added ID uniqueness validation in `Config::load()`
+   - Learning: Option types, HashSet, pattern matching, optimization
 
-8. **Step 3.2: Last Meeting Tracker**
+8. **Step 3.2: Last Meeting Tracker** 🚧 NEXT
    - Find most recent event per friend
+   - Use friend ID as key (not email, since email is now optional)
+   - Return `HashMap<String, Option<Event>>` (key = friend.id)
    - Calculate days since last meeting
    - Learning: Collections (HashMap, Vec), iterators
 

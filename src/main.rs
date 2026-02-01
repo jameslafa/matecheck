@@ -49,9 +49,14 @@ async fn main() {
             for friend in &config.friends {
                 if args.debug {
                     // In debug mode, show more details
+                    let email = friend.email.as_ref().map_or("no email", |e| e.as_str());
+                    let tg = friend
+                        .telegram_username
+                        .as_ref()
+                        .map_or("no username", |u| u.as_str());
                     println!(
-                        "  - {} ({}) - @{} - meet every {} days",
-                        friend.name, friend.email, friend.telegram_username, friend.frequency_days
+                        "  - [{}] {} ({}) - @{} - meet every {} days",
+                        friend.id, friend.name, email, tg, friend.frequency_days
                     );
                 } else {
                     println!(

@@ -1,22 +1,22 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
+use std::collections::HashSet;
 use std::fs;
 
 /// Represents a single friend to track meetings with.
-///
-/// The `#[derive(Deserialize, Debug)]` automatically generates:
-/// - Deserialize: Code to parse YAML into this struct
-/// - Debug: Code to print this struct nicely (like fmt.Printf("%+v") in Go)
 #[derive(Deserialize, Debug, Clone)]
 pub struct Friend {
+    /// Unique identifier for this friend (must be unique across all friends)
+    pub id: String,
+
     /// Friend's display name
     pub name: String,
 
-    /// Email address to match in calendar events
-    pub email: String,
+    /// Email address to match in calendar events (optional)
+    pub email: Option<String>,
 
-    /// Telegram username (without @) for generating chat links
-    pub telegram_username: String,
+    /// Telegram username (without @) for sending reminders (optional)
+    pub telegram_username: Option<String>,
 
     /// How often (in days) you want to meet this friend
     pub frequency_days: u32,
@@ -29,26 +29,83 @@ pub struct Config {
 }
 
 impl Config {
-    /// Loads configuration from a YAML file.
-    ///
-    /// Returns Result<Config, anyhow::Error>
-    /// - Ok(config) if successful
-    /// - Err(error) if file not found or YAML is invalid
-    ///
-    /// This is like Go's: func Load(path string) (*Config, error)
+    /// Loads configuration from a YAML file and validates it.
     pub fn load(path: &str) -> Result<Config> {
-        // Read file to string
-        // The `?` operator is like: if err != nil { return err }
-        // If there's an error, it returns early with that error
-        let contents = fs::read_to_string(path)
-            .context(format!("Failed to read config file: {}", path))?;
+        let contents =
+            fs::read_to_string(path).context(format!("Failed to read config file: {}", path))?;
 
-        // Parse YAML into Config struct
-        // serde_yaml uses the Deserialize trait we derived!
-        let config: Config = serde_yaml::from_str(&contents)
-            .context("Failed to parse YAML config")?;
+        let config: Config =
+            serde_yaml::from_str(&contents).context("Failed to parse YAML config")?;
 
-        // Return Ok(config) - like return config, nil in Go
+        // Validate that all friend IDs are unique
+        config.validate_unique_ids()?;
+
         Ok(config)
+    }
+
+    /// Validates that all friend IDs are unique.
+    fn validate_unique_ids(&self) -> Result<()> {
+        let mut seen = HashSet::new();
+        for friend in &self.friends {
+            if !seen.insert(&friend.id) {
+                return Err(anyhow::anyhow!("Duplicate friend ID: {}", &friend.id));
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_unique_ids_success() {
+        let config = Config {
+            friends: vec![
+                Friend {
+                    id: "alice".to_string(),
+                    name: "Alice".to_string(),
+                    email: Some("alice@example.com".to_string()),
+                    telegram_username: Some("alice_s".to_string()),
+                    frequency_days: 14,
+                },
+                Friend {
+                    id: "bob".to_string(),
+                    name: "Bob".to_string(),
+                    email: None,
+                    telegram_username: None,
+                    frequency_days: 30,
+                },
+            ],
+        };
+
+        assert!(config.validate_unique_ids().is_ok());
+    }
+
+    #[test]
+    fn test_validate_unique_ids_duplicate() {
+        let config = Config {
+            friends: vec![
+                Friend {
+                    id: "alice".to_string(),
+                    name: "Alice".to_string(),
+                    email: Some("alice@example.com".to_string()),
+                    telegram_username: Some("alice_s".to_string()),
+                    frequency_days: 14,
+                },
+                Friend {
+                    id: "alice".to_string(), // Duplicate!
+                    name: "Alice Smith".to_string(),
+                    email: Some("alice.smith@example.com".to_string()),
+                    telegram_username: Some("alice_smith".to_string()),
+                    frequency_days: 30,
+                },
+            ],
+        };
+
+        let result = config.validate_unique_ids();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("alice"));
     }
 }
