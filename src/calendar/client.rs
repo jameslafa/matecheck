@@ -11,6 +11,10 @@ use hyper_util::client::legacy::Client;
 
 use super::types::Event;
 
+#[cfg(test)]
+#[path = "client_test.rs"]
+mod client_test;
+
 /// Trait defining the interface for a calendar client
 ///
 /// Allows abstraction over different calendar providers and enables testing with mocks.
@@ -50,7 +54,7 @@ impl GoogleCalendarClient {
     }
 
     /// Converts a Google Calendar API event to our simplified Event type
-    fn convert_event(google_event: &GoogleEvent) -> Result<Event> {
+    pub(crate) fn convert_event(google_event: &GoogleEvent) -> Result<Event> {
         let start = google_event
             .start
             .as_ref()

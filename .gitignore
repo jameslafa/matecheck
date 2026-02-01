@@ -13,3 +13,6 @@ token.json
 
 # IDE and editor settings
 .claude/
+
+# Test fixtures with personal data
+tests/fixtures/calendar_events.json

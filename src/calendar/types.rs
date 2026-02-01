@@ -1,10 +1,11 @@
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// Represents a calendar event from Google Calendar
 ///
 /// This is a simplified version - we only extract the fields we need
 /// for matching events to friends.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
     /// Event title/summary (e.g., "Coffee with Alice")
     pub title: String,
