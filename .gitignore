@@ -1,4 +1,5 @@
 /target
+/src/examples
 
 # Sensitive configuration files
 friends.yaml
