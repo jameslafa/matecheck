@@ -10,3 +10,6 @@ token.json
 
 # Telegram bot token
 .env
+
+# IDE and editor settings
+.claude/

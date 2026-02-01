@@ -24,6 +24,12 @@ tokio = { version = "1", features = ["full"] }
 # HTTP client for API calls
 reqwest = { version = "0.11", features = ["json"] }
 
-# Google Calendar API
-google-calendar3 = "5.0"
-yup-oauth2 = "10.0"
+# Google Calendar API (latest versions with hyper v1.0)
+google-calendar3 = "7.0"
+yup-oauth2 = { version = "12.1", features = ["hyper-rustls"] }
+hyper-util = "0.1"
+hyper-rustls = { version = "0.27", features = ["native-tokio", "http2", "ring"] }
+rustls = { version = "0.23", features = ["ring"] }  # Crypto backend for TLS
+
+# Async trait support (traits with async methods)
+async-trait = "0.1"

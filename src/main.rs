@@ -1,8 +1,10 @@
+use calendar::client::{CalendarClient, GoogleCalendarClient};
+use chrono::{Duration, Utc};
 use clap::Parser;
 
 // Declare modules
-mod config;
 mod calendar;
+mod config;
 
 /// MateCheck - Track when you last met your friends
 ///
@@ -22,7 +24,13 @@ struct Args {
     debug: bool,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
+    // Initialize rustls crypto provider (required for TLS)
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
     // Parse command-line arguments
     // This automatically handles --help and --version!
     let args = Args::parse();
@@ -33,7 +41,7 @@ fn main() {
     }
 
     // Load config using the path from CLI args
-    match config::Config::load(&args.config) {
+    let _config = match config::Config::load(&args.config) {
         Ok(config) => {
             println!("✓ Config loaded successfully from: {}", args.config);
             println!("Found {} friends:", config.friends.len());
@@ -43,10 +51,7 @@ fn main() {
                     // In debug mode, show more details
                     println!(
                         "  - {} ({}) - @{} - meet every {} days",
-                        friend.name,
-                        friend.email,
-                        friend.telegram_username,
-                        friend.frequency_days
+                        friend.name, friend.email, friend.telegram_username, friend.frequency_days
                     );
                 } else {
                     println!(
@@ -55,9 +60,69 @@ fn main() {
                     );
                 }
             }
+            config
         }
         Err(error) => {
             eprintln!("✗ Error loading config: {}", error);
+            if args.debug {
+                eprintln!("[DEBUG] Full error: {:?}", error);
+            }
+            std::process::exit(1);
+        }
+    };
+
+    // TEST: Calendar API integration
+    println!("\n🔄 Testing Google Calendar connection...");
+
+    match GoogleCalendarClient::new().await {
+        Ok(client) => {
+            println!("✓ Calendar client created successfully");
+            println!("  (On first run, a browser will open for OAuth authorization)");
+
+            // Fetch events from last 30 days
+            let start = Utc::now() - Duration::days(30);
+            let end = Utc::now();
+
+            println!(
+                "\n📅 Fetching events from {} to {}...",
+                start.format("%Y-%m-%d"),
+                end.format("%Y-%m-%d")
+            );
+
+            match client.fetch_events(start, end).await {
+                Ok(events) => {
+                    println!("✓ Fetched {} events", events.len());
+
+                    if args.debug {
+                        for event in events.iter().take(5) {
+                            let attendee_list = if event.attendees.is_empty() {
+                                "no attendees".to_string()
+                            } else {
+                                event.attendees.join(", ")
+                            };
+
+                            println!(
+                                "  - {} | {} | {}",
+                                event.title,
+                                attendee_list,
+                                event.start.format("%Y-%m-%d %H:%M")
+                            );
+                        }
+                        if events.len() > 5 {
+                            println!("  ... and {} more", events.len() - 5);
+                        }
+                    }
+                }
+                Err(error) => {
+                    eprintln!("✗ Failed to fetch events: {}", error);
+                    if args.debug {
+                        eprintln!("[DEBUG] Full error: {:?}", error);
+                    }
+                }
+            }
+        }
+        Err(error) => {
+            eprintln!("✗ Failed to create calendar client: {}", error);
             if args.debug {
                 eprintln!("[DEBUG] Full error: {:?}", error);
             }

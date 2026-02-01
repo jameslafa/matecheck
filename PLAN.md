@@ -28,6 +28,12 @@ A Rust application that connects to Google Calendar, tracks meetings with friend
 - Maintain proper documentation (doc comments with ///)
 - Write tests for new functionality
 
+### Dependency Management
+- **Always check for latest compatible versions** before adding dependencies
+- Use `cargo search <crate-name>` to find the latest version
+- Verify version compatibility between related crates (e.g., google-calendar3 + yup-oauth2)
+- Don't add arbitrary version numbers without checking
+
 ### Git Workflow
 - **NEVER commit automatically** - always ask the user first
 - **Claude can suggest** when it's a good time to commit (e.g., after completing a phase/step)
