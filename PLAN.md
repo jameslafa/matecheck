@@ -6,6 +6,33 @@ A Rust application that connects to Google Calendar, tracks meetings with friend
 
 **Learning Goal**: Tutorial project to learn Rust, coming from Go background, with emphasis on understanding each step and good separation of concerns.
 
+## Development Approach
+
+**IMPORTANT: Read this section at the start of every session to maintain consistency.**
+
+### Learning Style
+- **Step-by-step, didactic approach**: Explain concepts thoroughly as we build
+- **Coming from Go background**: Relate Rust concepts to Go equivalents when helpful
+- **Hands-on implementation**: User writes the code to learn effectively
+
+### Scaffolding Method
+1. **Claude creates structure**: File organization, function signatures, type definitions
+2. **Claude adds detailed comments**: Hints, sequencing, and guidance inside functions
+3. **User implements**: User writes the actual function bodies based on hints
+4. **Claude guides**: Answer questions, explain concepts, help when stuck
+5. **Clean up after**: Remove tutorial comments once implementation is complete and working
+
+### Code Quality
+- Keep code **clean and production-ready**
+- Remove TODO comments and tutorial hints after implementation
+- Maintain proper documentation (doc comments with ///)
+- Write tests for new functionality
+
+### Git Workflow
+- **NEVER commit automatically** - always ask the user first
+- **Claude can suggest** when it's a good time to commit (e.g., after completing a phase/step)
+- User makes the final decision on when to commit
+
 ## Core Functionality
 
 1. Read a configurable list of friends (YAML/JSON)

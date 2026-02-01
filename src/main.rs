@@ -1,7 +1,8 @@
 use clap::Parser;
 
-// Declare the config module (tells Rust to look for src/config.rs)
+// Declare modules
 mod config;
+mod calendar;
 
 /// MateCheck - Track when you last met your friends
 ///
