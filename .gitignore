@@ -1,0 +1,11 @@
+/target
+
+# Sensitive configuration files
+friends.yaml
+
+# Google Calendar OAuth credentials
+credentials.json
+token.json
+
+# Telegram bot token
+.env

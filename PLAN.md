@@ -1,0 +1,255 @@
+# MateCheck - Friend Meeting Reminder System
+
+## Project Overview
+
+A Rust application that connects to Google Calendar, tracks meetings with friends, and sends Telegram reminders when it's been too long since the last meeting.
+
+**Learning Goal**: Tutorial project to learn Rust, coming from Go background, with emphasis on understanding each step and good separation of concerns.
+
+## Core Functionality
+
+1. Read a configurable list of friends (YAML/JSON)
+2. Connect to Google Calendar via OAuth 2.0
+3. Match calendar events to friends based on:
+   - Invitee email addresses (primary method)
+   - Event titles (fallback when no invitees)
+4. Calculate time since last meeting for each friend
+5. Send Telegram reminders for friends not seen within their configured frequency
+6. Provide CLI debug mode for development
+7. Run as GitHub Actions cron job for production
+
+## Architecture Decisions
+
+### Technology Choices
+- **Language**: Rust (learning from Go background)
+- **Config Format**: YAML (human-readable, not tracked in git)
+- **Calendar API**: Google Calendar API v3 with OAuth 2.0
+- **Notifications**: Telegram Bot API
+- **Persistence**: Stateless for v1 (query calendar each run), Firebase for v2
+- **Execution**: GitHub Actions cron + local CLI
+
+### Key Design Principles
+- **Separation of Concerns**: Each module has single responsibility
+- **Trait-based Design**: Use traits (like Go interfaces) for testability
+- **Explicit Error Handling**: Use Result<T, E> types throughout
+- **Configuration Over Code**: Externalize friend list and settings
+
+### Timezone & Granularity
+- **Timezone**: Europe/Berlin (hardcoded)
+- **Granularity**: Day-level only (no hour precision needed)
+
+## Project Structure
+
+```
+matecheck/
+├── src/
+│   ├── main.rs                 # CLI entry point, orchestration
+│   ├── config.rs               # Load friends config
+│   ├── calendar/
+│   │   ├── mod.rs              # Module declaration
+│   │   ├── client.rs           # Google Calendar API client
+│   │   └── types.rs            # Calendar event types
+│   ├── matcher/
+│   │   ├── mod.rs
+│   │   └── friend_matcher.rs   # Logic to match events to friends
+│   ├── reminder/
+│   │   ├── mod.rs
+│   │   └── engine.rs           # Determine who needs reminders
+│   └── telegram/
+│       ├── mod.rs
+│       └── client.rs           # Telegram bot client
+├── Cargo.toml                  # Dependencies
+├── .gitignore                  # Exclude sensitive files
+├── friends.example.yaml        # Example config (checked in)
+├── friends.yaml                # Actual config (gitignored)
+└── PLAN.md                     # This file
+```
+
+## Friends Configuration Schema
+
+```yaml
+friends:
+  - name: "Alice"
+    email: "alice@example.com"
+    telegram_username: "alice_tg"  # For generating chat links
+    frequency_days: 30
+
+  - name: "Bob"
+    email: "bob@example.com"
+    telegram_username: "bob_tg"
+    frequency_days: 14
+```
+
+## Step-by-Step Implementation Plan
+
+### Phase 1: Foundation
+**Goal**: Set up project basics and configuration loading
+
+1. **Step 1.1: Project Setup**
+   - Review existing Cargo.toml
+   - Add initial dependencies (serde, serde_yaml, chrono, tokio)
+   - Set up .gitignore
+   - Learning: Cargo basics, dependency management
+
+2. **Step 1.2: Configuration Module**
+   - Create `src/config.rs`
+   - Define Friend struct with serde deserialization
+   - Implement config loading from YAML
+   - Create `friends.example.yaml`
+   - Learning: Structs, traits (Deserialize), Result types, file I/O
+
+3. **Step 1.3: Basic CLI**
+   - Create minimal `src/main.rs`
+   - Add CLI argument parsing (clap crate)
+   - Add debug flag
+   - Load and print config
+   - Learning: main function, tokio async runtime, error handling
+
+### Phase 2: Google Calendar Integration
+**Goal**: Fetch calendar events
+
+4. **Step 2.1: Calendar Types**
+   - Create `src/calendar/mod.rs` and `types.rs`
+   - Define Event struct matching Google Calendar API
+   - Learning: Modules, nested modules, visibility
+
+5. **Step 2.2: Calendar Client**
+   - Create `src/calendar/client.rs`
+   - Set up OAuth 2.0 flow
+   - Implement calendar event fetching
+   - Learning: Traits, async/await, HTTP clients, OAuth
+
+6. **Step 2.3: Date Handling**
+   - Add timezone support (Europe/Berlin)
+   - Implement date comparison utilities
+   - Learning: chrono crate, date/time in Rust
+
+### Phase 3: Friend Matching Logic
+**Goal**: Match calendar events to friends
+
+7. **Step 3.1: Matcher Module**
+   - Create `src/matcher/mod.rs` and `friend_matcher.rs`
+   - Implement email-based matching
+   - Implement title-based matching (fallback)
+   - Learning: Strings, pattern matching, Option types
+
+8. **Step 3.2: Last Meeting Tracker**
+   - Find most recent event per friend
+   - Calculate days since last meeting
+   - Learning: Collections (HashMap, Vec), iterators
+
+### Phase 4: Reminder Logic
+**Goal**: Determine who needs reminders
+
+9. **Step 4.1: Reminder Engine**
+   - Create `src/reminder/mod.rs` and `engine.rs`
+   - Implement logic: days_since > frequency_days
+   - Return list of friends to remind about
+   - Learning: Business logic in Rust, testing
+
+### Phase 5: Telegram Integration
+**Goal**: Send notifications
+
+10. **Step 5.1: Telegram Bot Setup**
+    - Create bot via BotFather
+    - Store bot token (local + GitHub secret)
+    - Learning: External service integration
+
+11. **Step 5.2: Telegram Client**
+    - Create `src/telegram/mod.rs` and `client.rs`
+    - Implement message sending
+    - Format reminder message with clickable links
+    - Learning: HTTP APIs, string formatting
+
+12. **Step 5.3: Message Formatting**
+    - Create list of friends with Telegram deep links
+    - Format: "👤 Alice - last seen 45 days ago [Message](tg://resolve?domain=alice_tg)"
+    - Learning: String formatting, markdown
+
+### Phase 6: Integration & Deployment
+**Goal**: Make it production-ready
+
+13. **Step 6.1: End-to-End Testing**
+    - Test full flow locally
+    - Add error handling throughout
+    - Learning: Error propagation, debugging
+
+14. **Step 6.2: GitHub Actions Setup**
+    - Create `.github/workflows/daily-check.yml`
+    - Set up secrets (Google OAuth token, Telegram token)
+    - Schedule cron job
+    - Learning: CI/CD, secrets management
+
+15. **Step 6.3: Documentation**
+    - Write README.md
+    - Document setup process
+    - Add code comments for learning
+
+### Phase 7: Future Enhancements (Optional)
+16. Firebase integration for state persistence
+17. Multiple calendar support
+18. Configurable reminder messages
+19. Web dashboard
+
+## Rust Concepts to Learn (Mapped from Go)
+
+| Rust Concept | Go Equivalent | When We'll Learn It |
+|--------------|---------------|---------------------|
+| `Result<T, E>` | `error` return value | Step 1.2 |
+| `Option<T>` | Pointer nilability | Step 3.1 |
+| Ownership & Borrowing | Explicit copying/references | Step 1.2 |
+| Traits | Interfaces | Step 1.2 |
+| `async/await` | Goroutines/channels | Step 1.3 |
+| Pattern matching | Switch statements | Step 3.1 |
+| Iterators | Range loops | Step 3.2 |
+| Modules | Packages | Step 2.1 |
+| Cargo | go mod | Step 1.1 |
+| Macros | (no direct equivalent) | Throughout |
+
+## Dependencies (Cargo.toml)
+
+```toml
+[dependencies]
+# Config & Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1.0"
+
+# Date/Time
+chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.8"
+
+# Async Runtime
+tokio = { version = "1", features = ["full"] }
+
+# HTTP Client
+reqwest = { version = "0.11", features = ["json"] }
+
+# OAuth2
+oauth2 = "4.4"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Error Handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Google API
+google-calendar3 = "5.0"
+yup-oauth2 = "8.0"
+```
+
+## Current Status
+
+- [x] Initial Cargo project created
+- [ ] Step 1.1: Project setup and dependencies
+- [ ] Step 1.2: Configuration module
+- [ ] ... (to be updated as we progress)
+
+## Notes & Decisions
+
+- **Public Repo**: friends.yaml and sensitive data must be gitignored
+- **Stateless v1**: No persistence initially, recalculate from calendar each run
+- **Day Granularity**: No need for hour/minute precision
+- **Telegram Links**: Use tg://resolve?domain=username format for deep links
