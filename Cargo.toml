@@ -1,6 +1,15 @@
 [package]
 name = "matecheck"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"  # Rust edition (like Go language version)
 
 [dependencies]
+# Serialization - for loading YAML config
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive"] }
+
+# Error handling made easy
+anyhow = "1.0"

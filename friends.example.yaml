@@ -1,0 +1,18 @@
+# Example configuration file for MateCheck
+# Copy this to friends.yaml and customize with your actual friends
+
+friends:
+  - name: "Alice Smith"
+    email: "alice@example.com"
+    telegram_username: "alice_tg"
+    frequency_days: 30  # Want to see Alice every 30 days
+
+  - name: "Bob Johnson"
+    email: "bob@example.com"
+    telegram_username: "bob_tg"
+    frequency_days: 14  # Want to see Bob every 2 weeks
+
+  - name: "Charlie Davis"
+    email: "charlie@example.com"
+    telegram_username: "charlie_dev"
+    frequency_days: 60  # Want to see Charlie every 2 months
