@@ -183,16 +183,19 @@ friends:
 ### Phase 4: Reminder Logic
 **Goal**: Determine who needs reminders
 
-9. **Step 4.1: Reminder Engine** 🚧 NEXT
-   - Create `src/reminder/mod.rs` and `engine.rs`
-   - Implement logic: days_since > frequency_days
-   - Return list of friends to remind about
-   - Learning: Business logic in Rust, testing
+9. **Step 4.1: Reminder Engine** ✅ COMPLETE
+   - Created `src/reminder/mod.rs` and `engine.rs`
+   - Implemented `find_friends_needing_reminders()` with business logic
+   - Returns `Vec<ReminderInfo>` with friend, days_since, and days_overdue
+   - Handles friends never met (days_since = None, always remind)
+   - Handles friends overdue (days_since > frequency_days)
+   - All tests passing (5 tests in reminder engine)
+   - Learning: Pattern matching with guards, HashMap lookups, business logic, struct construction
 
 ### Phase 5: Telegram Integration
 **Goal**: Send notifications
 
-10. **Step 5.1: Telegram Bot Setup**
+10. **Step 5.1: Telegram Bot Setup** 🚧 NEXT
     - Create bot via BotFather
     - Store bot token (local + GitHub secret)
     - Learning: External service integration
