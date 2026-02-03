@@ -171,17 +171,19 @@ friends:
    - Added ID uniqueness validation in `Config::load()`
    - Learning: Option types, HashSet, pattern matching, optimization
 
-8. **Step 3.2: Last Meeting Tracker** 🚧 NEXT
-   - Find most recent event per friend
-   - Use friend ID as key (not email, since email is now optional)
-   - Return `HashMap<String, Option<Event>>` (key = friend.id)
-   - Calculate days since last meeting
-   - Learning: Collections (HashMap, Vec), iterators
+8. **Step 3.2: Last Meeting Tracker** ✅ COMPLETE
+   - Implemented `find_last_meetings()` - tracks most recent event per friend
+   - Used friend ID as HashMap key (handles optional emails correctly)
+   - Returns `HashMap<String, Option<Event>>` (key = friend.id)
+   - Implemented `days_since()` - calculates days between date and now
+   - Implemented `days_since_last_meeting()` - convenience wrapper
+   - All tests passing (17 tests total in matcher module)
+   - Learning: HashMap operations, Option<&T> vs &Option<T>, mutable references, pattern matching
 
 ### Phase 4: Reminder Logic
 **Goal**: Determine who needs reminders
 
-9. **Step 4.1: Reminder Engine**
+9. **Step 4.1: Reminder Engine** 🚧 NEXT
    - Create `src/reminder/mod.rs` and `engine.rs`
    - Implement logic: days_since > frequency_days
    - Return list of friends to remind about
@@ -226,10 +228,50 @@ friends:
     - Add code comments for learning
 
 ### Phase 7: Future Enhancements (Optional)
-16. Firebase integration for state persistence
-17. Multiple calendar support
-18. Configurable reminder messages
-19. Web dashboard
+
+**16. Smart Reminder Logic Enhancements**
+
+**a) Future Meeting Check**
+- Check if meeting already scheduled within frequency window
+- **Logic**: If friend has event scheduled in next N days (where N = frequency_days), skip reminder
+- **Example**:
+  - Matilda: frequency = 10 days
+  - Last meeting: 9 days ago (almost overdue)
+  - Future meeting: scheduled in 2 days
+  - Result: No reminder (total gap = 11 days, within acceptable range)
+- **Note**: This means max gap could be 2N days, but that's intentional and user-controlled
+- **Implementation**: Fetch future events separately, check in reminder engine
+
+**b) Early Reminder Threshold**
+- Send reminders BEFORE hitting the target, not after
+- **Goal**: Give time to schedule meeting before going overdue
+- **Logic**: Remind at (frequency_days - buffer_days)
+- **Example**:
+  - Matilda: frequency = 10 days, buffer = 2 days
+  - Last meeting: 8 days ago
+  - Result: Send reminder now (before hitting 10 days)
+- **Configuration**: Add to friends.yaml or global settings
+  ```yaml
+  settings:
+    reminder_buffer_days: 2  # Default buffer
+
+  friends:
+    - id: "matilda"
+      frequency_days: 10
+      # Uses default buffer of 2 days
+  ```
+
+**c) Filter Recurring Events**
+- Skip recurring events (birthdays, anniversaries) when matching
+- **Why**: Recurring events don't represent actual plans to meet
+- **Implementation**: Filter in `calendar/client.rs` during API conversion
+- **Logic**: Skip events where `recurring_event_id.is_some()`
+- **Result**: Recurring events simply don't exist in our internal Event list
+
+**17. Firebase integration for state persistence**
+18. Multiple calendar support
+19. Configurable reminder messages
+20. Web dashboard
 
 ## Rust Concepts to Learn (Mapped from Go)
 
