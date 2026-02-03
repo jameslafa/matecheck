@@ -5,6 +5,8 @@ use clap::Parser;
 // Declare modules
 mod calendar;
 mod config;
+mod matcher;
+mod reminder;
 
 /// MateCheck - Track when you last met your friends
 ///
@@ -41,7 +43,7 @@ async fn main() {
     }
 
     // Load config using the path from CLI args
-    let _config = match config::Config::load(&args.config) {
+    let config = match config::Config::load(&args.config) {
         Ok(config) => {
             println!("✓ Config loaded successfully from: {}", args.config);
             println!("Found {} friends:", config.friends.len());
@@ -84,8 +86,8 @@ async fn main() {
             println!("✓ Calendar client created successfully");
             println!("  (On first run, a browser will open for OAuth authorization)");
 
-            // Fetch events from last 30 days
-            let start = Utc::now() - Duration::days(30);
+            // Fetch events from last 90 days
+            let start = Utc::now() - Duration::days(90);
             let end = Utc::now();
 
             println!(
@@ -115,6 +117,37 @@ async fn main() {
                         }
                         if events.len() > 5 {
                             println!("  ... and {} more", events.len() - 5);
+                        }
+                    }
+
+                    // TEST: Reminder Engine
+                    println!("\n🔔 Checking who needs reminders...");
+
+                    let reminders = reminder::find_friends_needing_reminders(&events, &config.friends);
+
+                    if reminders.is_empty() {
+                        println!("✓ Everyone is up to date! No reminders needed.");
+                    } else {
+                        println!("✓ Found {} friend(s) who need reminders:\n", reminders.len());
+
+                        for reminder_info in &reminders {
+                            let days_since_str = match reminder_info.days_since_last_meeting {
+                                Some(days) => format!("{} days ago", days),
+                                None => "never met".to_string(),
+                            };
+
+                            println!("  📌 {} ({})", reminder_info.friend.name, reminder_info.friend.id);
+                            println!("     Last meeting: {}", days_since_str);
+                            println!("     Target frequency: {} days", reminder_info.friend.frequency_days);
+                            println!("     Days overdue: {}", reminder_info.days_overdue);
+
+                            if let Some(email) = &reminder_info.friend.email {
+                                println!("     Email: {}", email);
+                            }
+                            if let Some(tg) = &reminder_info.friend.telegram_username {
+                                println!("     Telegram: @{}", tg);
+                            }
+                            println!();
                         }
                     }
                 }
