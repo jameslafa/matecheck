@@ -77,7 +77,7 @@ mod tests {
 
     fn mock_event(title: &str, attendees: Vec<String>, days_ago: i64) -> Event {
         let start = Utc::now() - Duration::days(days_ago);
-        Event::new(title.to_string(), attendees, start, None)
+        Event { title: title.to_string(), attendees, start, end: None }
     }
 
     #[test]

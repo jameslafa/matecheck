@@ -21,21 +21,6 @@ pub struct Event {
 }
 
 impl Event {
-    /// Creates a new Event
-    pub fn new(
-        title: String,
-        attendees: Vec<String>,
-        start: DateTime<Utc>,
-        end: Option<DateTime<Utc>>,
-    ) -> Self {
-        Event {
-            title,
-            attendees,
-            start,
-            end,
-        }
-    }
-
     /// Checks if this event has any attendees
     pub fn has_attendees(&self) -> bool {
         !self.attendees.is_empty()
@@ -44,11 +29,6 @@ impl Event {
     /// Checks if a specific email is in the attendees list
     pub fn has_attendee(&self, email: &str) -> bool {
         self.attendees.iter().any(|a| a == email)
-    }
-
-    /// Gets the event date (without time) in Berlin timezone
-    pub fn date_berlin(&self) -> chrono::NaiveDate {
-        todo!("Step 2.3: Convert UTC to Berlin timezone and extract date")
     }
 }
 
@@ -59,16 +39,16 @@ mod tests {
     use chrono::TimeZone;
 
     #[test]
-    fn test_new_event() {
+    fn test_event_creation() {
         let start = Utc.with_ymd_and_hms(2024, 1, 15, 10, 0, 0).unwrap();
         let end = Utc.with_ymd_and_hms(2024, 1, 15, 11, 0, 0).unwrap();
 
-        let event = Event::new(
-            "Coffee with Alice".to_string(),
-            vec!["alice@example.com".to_string()],
+        let event = Event {
+            title: "Coffee with Alice".to_string(),
+            attendees: vec!["alice@example.com".to_string()],
             start,
-            Some(end),
-        );
+            end: Some(end),
+        };
 
         assert_eq!(event.title, "Coffee with Alice");
         assert_eq!(event.attendees.len(), 1);
@@ -78,14 +58,19 @@ mod tests {
     fn test_has_attendees() {
         let start = Utc.with_ymd_and_hms(2024, 1, 15, 10, 0, 0).unwrap();
 
-        let event_with = Event::new(
-            "Meeting".to_string(),
-            vec!["alice@example.com".to_string()],
+        let event_with = Event {
+            title: "Meeting".to_string(),
+            attendees: vec!["alice@example.com".to_string()],
             start,
-            None,
-        );
+            end: None,
+        };
 
-        let event_without = Event::new("Solo work".to_string(), vec![], start, None);
+        let event_without = Event {
+            title: "Solo work".to_string(),
+            attendees: vec![],
+            start,
+            end: None,
+        };
 
         assert!(event_with.has_attendees());
         assert!(!event_without.has_attendees());
@@ -95,15 +80,15 @@ mod tests {
     fn test_has_attendee() {
         let start = Utc.with_ymd_and_hms(2024, 1, 15, 10, 0, 0).unwrap();
 
-        let event = Event::new(
-            "Team meeting".to_string(),
-            vec![
+        let event = Event {
+            title: "Team meeting".to_string(),
+            attendees: vec![
                 "alice@example.com".to_string(),
                 "bob@example.com".to_string(),
             ],
             start,
-            None,
-        );
+            end: None,
+        };
 
         assert!(event.has_attendee("alice@example.com"));
         assert!(event.has_attendee("bob@example.com"));

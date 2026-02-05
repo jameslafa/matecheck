@@ -23,6 +23,9 @@ struct SendMessageRequest {
     /// Parse mode for formatting (e.g., "Markdown" or "HTML")
     #[serde(skip_serializing_if = "Option::is_none")]
     parse_mode: Option<String>,
+    /// Disable link previews in the message
+    #[serde(skip_serializing_if = "Option::is_none")]
+    disable_web_page_preview: Option<bool>,
 }
 
 impl TelegramClient {
@@ -78,6 +81,7 @@ impl TelegramClient {
             } else {
                 None
             },
+            disable_web_page_preview: Some(true),
         };
 
         let response = self

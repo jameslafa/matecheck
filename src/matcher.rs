@@ -99,7 +99,7 @@ mod tests {
     }
 
     fn mock_event(title: &str, attendees: Vec<String>) -> Event {
-        Event::new(title.to_string(), attendees, Utc::now(), None)
+        Event { title: title.to_string(), attendees, start: Utc::now(), end: None }
     }
 
     #[test]
@@ -343,13 +343,13 @@ mod tests {
         assert!(last_meetings.get("alice").unwrap().is_some());
     }
 
-    // Helper for creating events with specific timestamp (for Step 3.2 tests)
+    // Helper for creating events with specific timestamp
     fn mock_event_at(
         title: &str,
         attendees: Vec<String>,
         start: DateTime<Utc>,
         end: Option<DateTime<Utc>>,
     ) -> Event {
-        Event::new(title.to_string(), attendees, start, end)
+        Event { title: title.to_string(), attendees, start, end }
     }
 }

@@ -2,7 +2,7 @@
 //
 // This module is organized into submodules:
 // - types: Data structures for calendar events
-// - client: API client for fetching events (we'll create this in Step 2.2)
+// - client: Google Calendar API client for fetching events
 
 pub mod types;
 pub mod client;
