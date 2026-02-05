@@ -207,9 +207,17 @@ async fn main() {
             println!("✓ Calendar client created successfully");
             println!("  (On first run, a browser will open for OAuth authorization)");
 
-            // Fetch events from last 90 days
+            // Fetch events from last 90 days AND future events
+            // Future events help us avoid reminding when meeting is already scheduled
+            let max_frequency = config
+                .friends
+                .iter()
+                .map(|f| f.frequency_days)
+                .max()
+                .unwrap_or(30);
+
             let start = Utc::now() - Duration::days(90);
-            let end = Utc::now();
+            let end = Utc::now() + Duration::days(max_frequency as i64);
 
             println!(
                 "\n📅 Fetching events from {} to {}...",

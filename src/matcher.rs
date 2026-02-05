@@ -61,6 +61,43 @@ pub fn find_last_meetings(events: &[Event], friends: &[Friend]) -> HashMap<Strin
     last_event_by_friend
 }
 
+/// Find the soonest upcoming event for each friend
+///
+/// Returns a HashMap where:
+/// - Key: friend.id
+/// - Value: Option<Event> - Some(event) if any future meeting was found, None if no upcoming meetings
+///
+/// Only considers events in the future (start time > now).
+/// When multiple future events match a friend, only the soonest is kept.
+pub fn find_next_meetings(events: &[Event], friends: &[Friend]) -> HashMap<String, Option<Event>> {
+    let now = Utc::now();
+    let mut next_event_by_friend: HashMap<String, Option<Event>> = HashMap::new();
+
+    // Initialize with None for all friends
+    for friend in friends {
+        next_event_by_friend.insert(friend.id.clone(), None);
+    }
+
+    // Find the soonest future event for each friend
+    for event in events {
+        // Skip past events
+        if event.start <= now {
+            continue;
+        }
+
+        for matched_friend in find_matches(event, friends) {
+            let current = next_event_by_friend.get_mut(&matched_friend.id).unwrap();
+
+            // Update if None or if this event is sooner
+            if current.is_none() || event.start < current.as_ref().unwrap().start {
+                *current = Some(event.clone());
+            }
+        }
+    }
+
+    next_event_by_friend
+}
+
 /// Calculate the number of days between a date and now
 ///
 /// Returns None if the event is in the future.
@@ -341,6 +378,78 @@ mod tests {
         let last_meetings = find_last_meetings(&events, &friends);
 
         assert!(last_meetings.get("alice").unwrap().is_some());
+    }
+
+    #[test]
+    fn test_find_next_meetings_single_future_event() {
+        use chrono::Duration;
+
+        let alice = mock_friend("alice", "Alice", Some("alice@example.com"));
+        let friends = vec![alice];
+
+        let future = Utc::now() + Duration::days(3);
+        let event = mock_event_at(
+            "Future coffee",
+            vec!["alice@example.com".to_string()],
+            future,
+            None,
+        );
+        let events = vec![event];
+
+        let next_meetings = find_next_meetings(&events, &friends);
+
+        let alice_next = next_meetings.get("alice").unwrap();
+        assert!(alice_next.is_some());
+        assert_eq!(alice_next.as_ref().unwrap().title, "Future coffee");
+    }
+
+    #[test]
+    fn test_find_next_meetings_picks_soonest() {
+        use chrono::Duration;
+
+        let alice = mock_friend("alice", "Alice", Some("alice@example.com"));
+        let friends = vec![alice];
+
+        let soon = Utc::now() + Duration::days(2);
+        let later = Utc::now() + Duration::days(10);
+
+        let events = vec![
+            mock_event_at("Later meeting", vec!["alice@example.com".to_string()], later, None),
+            mock_event_at("Sooner meeting", vec!["alice@example.com".to_string()], soon, None),
+        ];
+
+        let next_meetings = find_next_meetings(&events, &friends);
+
+        let alice_next = next_meetings.get("alice").unwrap().as_ref().unwrap();
+        assert_eq!(alice_next.title, "Sooner meeting");
+    }
+
+    #[test]
+    fn test_find_next_meetings_ignores_past_events() {
+        use chrono::Duration;
+
+        let alice = mock_friend("alice", "Alice", Some("alice@example.com"));
+        let friends = vec![alice];
+
+        let past = Utc::now() - Duration::days(5);
+        let event = mock_event_at("Past meeting", vec!["alice@example.com".to_string()], past, None);
+        let events = vec![event];
+
+        let next_meetings = find_next_meetings(&events, &friends);
+
+        assert!(next_meetings.get("alice").unwrap().is_none());
+    }
+
+    #[test]
+    fn test_find_next_meetings_no_future_events() {
+        let alice = mock_friend("alice", "Alice", Some("alice@example.com"));
+        let friends = vec![alice];
+        let events = vec![];
+
+        let next_meetings = find_next_meetings(&events, &friends);
+
+        assert_eq!(next_meetings.len(), 1);
+        assert!(next_meetings.get("alice").unwrap().is_none());
     }
 
     // Helper for creating events with specific timestamp

@@ -3,6 +3,7 @@ use std::i64;
 use crate::calendar::types::Event;
 use crate::config::Friend;
 use crate::matcher;
+use chrono::Utc;
 
 /// Information about a friend who needs a reminder
 #[derive(Debug, Clone)]
@@ -23,34 +24,54 @@ pub struct ReminderInfo {
 /// **Logic:**
 /// - If `days_since_last_meeting > frequency_days`, the friend needs a reminder
 /// - If never met (no events), always send reminder
+/// - **SKIP** reminder if meeting already scheduled within frequency window
 ///
-/// **Future enhancements (Phase 7):**
-/// - Early reminder threshold (remind before overdue)
-/// - Future meeting check (skip if meeting already scheduled)
+/// **Future meeting check:**
+/// - If friend is overdue BUT has a meeting scheduled within frequency_days, skip reminder
+/// - Example: frequency=10, last_met=9 days ago, future_meeting=in 2 days → no reminder
 pub fn find_friends_needing_reminders(events: &[Event], friends: &[Friend]) -> Vec<ReminderInfo> {
     let last_meetings_by_friend = matcher::find_last_meetings(events, friends);
+    let next_meetings_by_friend = matcher::find_next_meetings(events, friends);
     let mut reminders = Vec::new();
+
     for friend in friends {
         let last_meeting = last_meetings_by_friend.get(&friend.id);
         let days_since = matcher::days_since_last_meeting(last_meeting.as_ref().unwrap());
 
+        // Check if they have an upcoming meeting
+        let has_upcoming_meeting = next_meetings_by_friend
+            .get(&friend.id)
+            .and_then(|opt_event| opt_event.as_ref())
+            .and_then(|event| {
+                let days_until = (event.start - Utc::now()).num_days();
+                if days_until >= 0 && days_until <= friend.frequency_days as i64 {
+                    Some(days_until)
+                } else {
+                    None
+                }
+            });
+
         match days_since {
             None => {
-                // Friend never met - always send reminder
-                reminders.push(ReminderInfo {
-                    friend: friend.clone(),
-                    days_since_last_meeting: None,
-                    days_overdue: i64::MAX,
-                });
+                // Friend never met - send reminder unless meeting is scheduled soon
+                if has_upcoming_meeting.is_none() {
+                    reminders.push(ReminderInfo {
+                        friend: friend.clone(),
+                        days_since_last_meeting: None,
+                        days_overdue: i64::MAX,
+                    });
+                }
             }
             Some(days) if days > friend.frequency_days as i64 => {
-                // Friend is overdue
-                let days_overdue = days - friend.frequency_days as i64;
-                reminders.push(ReminderInfo {
-                    friend: friend.clone(),
-                    days_since_last_meeting: Some(days),
-                    days_overdue,
-                });
+                // Friend is overdue - but skip if meeting already scheduled
+                if has_upcoming_meeting.is_none() {
+                    let days_overdue = days - friend.frequency_days as i64;
+                    reminders.push(ReminderInfo {
+                        friend: friend.clone(),
+                        days_since_last_meeting: Some(days),
+                        days_overdue,
+                    });
+                }
             }
             Some(_) => {
                 // Not overdue yet - no reminder needed
@@ -162,5 +183,78 @@ mod tests {
         assert!(ids.contains(&"alice"));
         assert!(ids.contains(&"charlie"));
         assert!(!ids.contains(&"bob"));
+    }
+
+    #[test]
+    fn test_overdue_but_has_upcoming_meeting_no_reminder() {
+        let alice = mock_friend("alice", "Alice", 10);
+        let friends = vec![alice];
+
+        // Last meeting was 12 days ago (overdue by 2)
+        let past_event = mock_event("Past coffee", vec!["alice@example.com".to_string()], 12);
+
+        // But has a meeting scheduled in 3 days (within frequency window)
+        let future_start = Utc::now() + Duration::days(3);
+        let future_event = Event {
+            title: "Upcoming lunch".to_string(),
+            attendees: vec!["alice@example.com".to_string()],
+            start: future_start,
+            end: None,
+        };
+
+        let events = vec![past_event, future_event];
+
+        let reminders = find_friends_needing_reminders(&events, &friends);
+
+        // Should NOT remind because meeting is already scheduled
+        assert_eq!(reminders.len(), 0);
+    }
+
+    #[test]
+    fn test_overdue_with_far_future_meeting_still_reminds() {
+        let alice = mock_friend("alice", "Alice", 10);
+        let friends = vec![alice];
+
+        // Last meeting was 12 days ago (overdue by 2)
+        let past_event = mock_event("Past coffee", vec!["alice@example.com".to_string()], 12);
+
+        // Has a meeting scheduled in 20 days (beyond frequency window)
+        let future_start = Utc::now() + Duration::days(20);
+        let future_event = Event {
+            title: "Far future lunch".to_string(),
+            attendees: vec!["alice@example.com".to_string()],
+            start: future_start,
+            end: None,
+        };
+
+        let events = vec![past_event, future_event];
+
+        let reminders = find_friends_needing_reminders(&events, &friends);
+
+        // SHOULD remind because future meeting is too far away
+        assert_eq!(reminders.len(), 1);
+        assert_eq!(reminders[0].friend.id, "alice");
+    }
+
+    #[test]
+    fn test_never_met_with_upcoming_meeting_no_reminder() {
+        let alice = mock_friend("alice", "Alice", 10);
+        let friends = vec![alice];
+
+        // Never met before, but has upcoming meeting in 5 days
+        let future_start = Utc::now() + Duration::days(5);
+        let future_event = Event {
+            title: "First meeting".to_string(),
+            attendees: vec!["alice@example.com".to_string()],
+            start: future_start,
+            end: None,
+        };
+
+        let events = vec![future_event];
+
+        let reminders = find_friends_needing_reminders(&events, &friends);
+
+        // Should NOT remind because meeting is scheduled
+        assert_eq!(reminders.len(), 0);
     }
 }

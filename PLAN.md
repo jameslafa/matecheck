@@ -211,30 +211,24 @@ friends:
     - Format: "👤 Alice - last seen 45 days ago [Message](tg://resolve?domain=alice_tg)"
     - Learning: String formatting, markdown
 
-### Phase 6: Integration & Deployment
-**Goal**: Make it production-ready
+### Phase 6: Integration & Testing ✅ COMPLETE
+**Goal**: Make it production-ready locally
 
-13. **Step 6.1: End-to-End Testing**
+13. **Step 6.1: End-to-End Testing** ✅
     - Test full flow locally
     - Add error handling throughout
     - Learning: Error propagation, debugging
 
-14. **Step 6.2: GitHub Actions Setup**
-    - Create `.github/workflows/daily-check.yml`
-    - Set up secrets (Google OAuth token, Telegram token)
-    - Schedule cron job
-    - Learning: CI/CD, secrets management
-
-15. **Step 6.3: Documentation**
+14. **Step 6.2: Documentation**
     - Write README.md
     - Document setup process
     - Add code comments for learning
 
-### Phase 7: Future Enhancements (Optional)
+### Phase 7: Smart Reminder Enhancements
 
-**16. Smart Reminder Logic Enhancements**
+**15. Smart Reminder Logic Enhancements**
 
-**a) Future Meeting Check**
+**a) Future Meeting Check** ✅ COMPLETE
 - Check if meeting already scheduled within frequency window
 - **Logic**: If friend has event scheduled in next N days (where N = frequency_days), skip reminder
 - **Example**:
@@ -271,10 +265,39 @@ friends:
 - **Logic**: Skip events where `recurring_event_id.is_some()`
 - **Result**: Recurring events simply don't exist in our internal Event list
 
-**17. Firebase integration for state persistence**
-18. Multiple calendar support
-19. Configurable reminder messages
-20. Web dashboard
+**d) Friend Name Aliases**
+- Support multiple names/aliases for the same friend
+- **Why**: Friends may be called by different names (Lou/Louise, Mike/Michael, nicknames)
+- **Example**:
+  ```yaml
+  friends:
+    - id: "louise"
+      name: "Louise"
+      aliases: ["Lou", "Loulou"]
+      email: "louise@example.com"
+      frequency_days: 14
+  ```
+- **Implementation**:
+  - Add optional `aliases: Vec<String>` field to Friend struct
+  - Update title matching in `matcher.rs` to check aliases
+  - Match if event title contains friend name OR any alias
+- **Use Case**: Calendar event "Coffee with Lou" matches friend "Louise"
+
+**16. Other Future Ideas**
+- Firebase integration for state persistence
+- Multiple calendar support
+- Configurable reminder messages
+- Web dashboard
+
+### Phase 8: Production Deployment (When Ready)
+
+**17. GitHub Actions Automated Deployment**
+- Create `.github/workflows/daily-check.yml`
+- Set up secrets (Google OAuth token, Telegram token, chat ID)
+- Schedule cron job (e.g., daily at 9 AM)
+- Test workflow manually before enabling schedule
+- Learning: CI/CD, secrets management, cron expressions
+- **Note**: Only do this when you're confident the app works reliably
 
 ## Rust Concepts to Learn (Mapped from Go)
 
