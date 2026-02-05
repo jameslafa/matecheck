@@ -2,6 +2,15 @@
 name = "matecheck"
 version = "0.1.0"
 edition = "2021"  # Rust edition (like Go language version)
+default-run = "matecheck"
+
+[[bin]]
+name = "matecheck"
+path = "src/main.rs"
+
+[[bin]]
+name = "record_calendar_response"
+path = "src/bin/record_calendar_response.rs"
 
 [dependencies]
 # Serialization - for loading YAML config
