@@ -1,7 +1,7 @@
 use std::i64;
 
 use crate::calendar::types::Event;
-use crate::config::Friend;
+use crate::config::{Config, Friend};
 use crate::matcher;
 use chrono::Utc;
 
@@ -22,14 +22,21 @@ pub struct ReminderInfo {
 /// Find all friends who need reminders based on their meeting frequency
 ///
 /// **Logic:**
-/// - If `days_since_last_meeting > frequency_days`, the friend needs a reminder
+/// - Reminds when `days_since >= (frequency_days - buffer_days)`
+/// - Buffer is automatically calculated as 15% of frequency (proportional early warning)
 /// - If never met (no events), always send reminder
 /// - **SKIP** reminder if meeting already scheduled within frequency window
 ///
+/// **Automatic buffer (15% of frequency):**
+/// - frequency=10 → buffer=2 → remind at day 8
+/// - frequency=30 → buffer=5 → remind at day 25
+/// - frequency=45 → buffer=7 → remind at day 38
+///
 /// **Future meeting check:**
-/// - If friend is overdue BUT has a meeting scheduled within frequency_days, skip reminder
+/// - If friend would get reminder BUT has meeting scheduled within frequency_days, skip
 /// - Example: frequency=10, last_met=9 days ago, future_meeting=in 2 days → no reminder
-pub fn find_friends_needing_reminders(events: &[Event], friends: &[Friend]) -> Vec<ReminderInfo> {
+pub fn find_friends_needing_reminders(events: &[Event], config: &Config) -> Vec<ReminderInfo> {
+    let friends = &config.friends;
     let last_meetings_by_friend = matcher::find_last_meetings(events, friends);
     let next_meetings_by_friend = matcher::find_next_meetings(events, friends);
     let mut reminders = Vec::new();
@@ -51,20 +58,34 @@ pub fn find_friends_needing_reminders(events: &[Event], friends: &[Friend]) -> V
                 }
             });
 
-        match days_since {
+        // Calculate reminder threshold with automatic 15% buffer
+        let buffer = friend.buffer_days();
+        let threshold = friend.frequency_days.saturating_sub(buffer) as i64;
+
+        // Determine if friend needs reminder based on automatic buffer
+        let needs_reminder = match days_since {
             None => {
-                // Friend never met - send reminder unless meeting is scheduled soon
-                if has_upcoming_meeting.is_none() {
+                // Friend never met - always needs reminder (unless meeting scheduled)
+                has_upcoming_meeting.is_none()
+            }
+            Some(days) => {
+                // Buffer is always > 0 (minimum 1), so remind at or after threshold
+                // Example: freq=10, buffer=2 → threshold=8, remind at day 8+
+                let should_remind = days >= threshold;
+                should_remind && has_upcoming_meeting.is_none()
+            }
+        };
+
+        if needs_reminder {
+            match days_since {
+                None => {
                     reminders.push(ReminderInfo {
                         friend: friend.clone(),
                         days_since_last_meeting: None,
                         days_overdue: i64::MAX,
                     });
                 }
-            }
-            Some(days) if days > friend.frequency_days as i64 => {
-                // Friend is overdue - but skip if meeting already scheduled
-                if has_upcoming_meeting.is_none() {
+                Some(days) => {
                     let days_overdue = days - friend.frequency_days as i64;
                     reminders.push(ReminderInfo {
                         friend: friend.clone(),
@@ -72,9 +93,6 @@ pub fn find_friends_needing_reminders(events: &[Event], friends: &[Friend]) -> V
                         days_overdue,
                     });
                 }
-            }
-            Some(_) => {
-                // Not overdue yet - no reminder needed
             }
         }
     }
@@ -97,6 +115,12 @@ mod tests {
         }
     }
 
+    fn mock_config(friends: Vec<Friend>) -> Config {
+        Config {
+            friends,
+        }
+    }
+
     fn mock_event(title: &str, attendees: Vec<String>, days_ago: i64) -> Event {
         let start = Utc::now() - Duration::days(days_ago);
         Event { title: title.to_string(), attendees, start, end: None }
@@ -111,7 +135,7 @@ mod tests {
         let event = mock_event("Coffee", vec!["alice@example.com".to_string()], 15);
         let events = vec![event];
 
-        let reminders = find_friends_needing_reminders(&events, &friends);
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
 
         assert_eq!(reminders.len(), 1);
         assert_eq!(reminders[0].friend.id, "alice");
@@ -128,7 +152,7 @@ mod tests {
         let event = mock_event("Coffee", vec!["alice@example.com".to_string()], 5);
         let events = vec![event];
 
-        let reminders = find_friends_needing_reminders(&events, &friends);
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
 
         assert_eq!(reminders.len(), 0);
     }
@@ -140,28 +164,13 @@ mod tests {
 
         let events = vec![]; // No events
 
-        let reminders = find_friends_needing_reminders(&events, &friends);
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
 
         assert_eq!(reminders.len(), 1);
         assert_eq!(reminders[0].friend.id, "bob");
         assert!(reminders[0].days_since_last_meeting.is_none());
         // days_overdue should be very high (or i64::MAX)
         assert!(reminders[0].days_overdue > 1000);
-    }
-
-    #[test]
-    fn test_exactly_at_frequency_no_reminder() {
-        let alice = mock_friend("alice", "Alice", 10);
-        let friends = vec![alice];
-
-        // Last meeting was exactly 10 days ago (at threshold, not over)
-        let event = mock_event("Coffee", vec!["alice@example.com".to_string()], 10);
-        let events = vec![event];
-
-        let reminders = find_friends_needing_reminders(&events, &friends);
-
-        // Should NOT remind (> not >=)
-        assert_eq!(reminders.len(), 0);
     }
 
     #[test]
@@ -177,7 +186,7 @@ mod tests {
                                                                                     // Charlie never met
         ];
 
-        let reminders = find_friends_needing_reminders(&events, &friends);
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
 
         assert_eq!(reminders.len(), 2); // Alice and Charlie
         let ids: Vec<&str> = reminders.iter().map(|r| r.friend.id.as_str()).collect();
@@ -205,7 +214,7 @@ mod tests {
 
         let events = vec![past_event, future_event];
 
-        let reminders = find_friends_needing_reminders(&events, &friends);
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
 
         // Should NOT remind because meeting is already scheduled
         assert_eq!(reminders.len(), 0);
@@ -230,7 +239,7 @@ mod tests {
 
         let events = vec![past_event, future_event];
 
-        let reminders = find_friends_needing_reminders(&events, &friends);
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
 
         // SHOULD remind because future meeting is too far away
         assert_eq!(reminders.len(), 1);
@@ -253,9 +262,53 @@ mod tests {
 
         let events = vec![future_event];
 
-        let reminders = find_friends_needing_reminders(&events, &friends);
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
 
         // Should NOT remind because meeting is scheduled
+        assert_eq!(reminders.len(), 0);
+    }
+
+    #[test]
+    fn test_automatic_buffer_15_percent() {
+        // Test that buffer is automatically calculated as 15% of frequency
+        let alice = mock_friend("alice", "Alice", 10);  // buffer = round(10 * 0.15) = 2
+        let bob = mock_friend("bob", "Bob", 30);        // buffer = round(30 * 0.15) = 5
+        let charlie = mock_friend("charlie", "Charlie", 45); // buffer = round(45 * 0.15) = 7
+
+        assert_eq!(alice.buffer_days(), 2);
+        assert_eq!(bob.buffer_days(), 5);
+        assert_eq!(charlie.buffer_days(), 7);
+    }
+
+    #[test]
+    fn test_early_reminder_with_automatic_buffer() {
+        let alice = mock_friend("alice", "Alice", 10);  // buffer=2, threshold=8
+        let friends = vec![alice];
+
+        // Last meeting was 8 days ago (at threshold)
+        let event = mock_event("Coffee", vec!["alice@example.com".to_string()], 8);
+        let events = vec![event];
+
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
+
+        // SHOULD remind because days_since (8) >= threshold (10-2=8)
+        assert_eq!(reminders.len(), 1);
+        assert_eq!(reminders[0].friend.id, "alice");
+        assert_eq!(reminders[0].days_since_last_meeting, Some(8));
+    }
+
+    #[test]
+    fn test_no_early_reminder_before_automatic_threshold() {
+        let alice = mock_friend("alice", "Alice", 10);  // buffer=2, threshold=8
+        let friends = vec![alice];
+
+        // Last meeting was 7 days ago (before threshold)
+        let event = mock_event("Coffee", vec!["alice@example.com".to_string()], 7);
+        let events = vec![event];
+
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
+
+        // Should NOT remind (7 < 8)
         assert_eq!(reminders.len(), 0);
     }
 }

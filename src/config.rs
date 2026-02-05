@@ -28,6 +28,19 @@ pub struct Friend {
     pub frequency_days: u32,
 }
 
+impl Friend {
+    /// Calculate automatic buffer for early reminders (15% of frequency)
+    ///
+    /// This gives proportional advance warning based on meeting frequency:
+    /// - 10 days → 2 day buffer (remind at day 8)
+    /// - 30 days → 5 day buffer (remind at day 25)
+    /// - 45 days → 7 day buffer (remind at day 38)
+    pub fn buffer_days(&self) -> u32 {
+        // 15% of frequency, rounded to nearest day
+        ((self.frequency_days as f64 * 0.15).round() as u32).max(1)
+    }
+}
+
 /// Main configuration structure that holds all friends.
 #[derive(Deserialize, Debug)]
 pub struct Config {

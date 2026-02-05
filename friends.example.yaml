@@ -1,5 +1,10 @@
 # Example configuration file for MateCheck
 # Copy this to friends.yaml and customize with your actual friends
+#
+# Early reminders are automatic! The app reminds you at 15% before your target:
+# - frequency=10 days → remind at day 8 (2 days early)
+# - frequency=30 days → remind at day 25 (5 days early)
+# - frequency=45 days → remind at day 38 (7 days early)
 
 friends:
   - id: "alice"
@@ -25,4 +30,4 @@ friends:
     email: "louise@example.com"
     telegram_username: "lou_m"
     aliases: ["Lou", "Loulou"]  # Match calendar events mentioning "Lou" or "Loulou"
-    frequency_days: 21  # Want to see Louise every 3 weeks
+    frequency_days: 21  # Want to see Louise every 3 weeks (automatic 3-day buffer)

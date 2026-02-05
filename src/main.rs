@@ -254,7 +254,7 @@ async fn main() {
                         println!("\n🔔 Checking who needs reminders...");
                     }
 
-                    let reminders = reminder::find_friends_needing_reminders(&events, &config.friends);
+                    let reminders = reminder::find_friends_needing_reminders(&events, &config);
 
                     if reminders.is_empty() {
                         println!("✅ Everyone is up to date! No reminders needed.");
