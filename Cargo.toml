@@ -43,3 +43,6 @@ rustls = { version = "0.23", features = ["ring"] }  # Crypto backend for TLS
 
 # Async trait support (traits with async methods)
 async-trait = "0.1"
+
+# Load environment variables from .env file
+dotenvy = "0.15"

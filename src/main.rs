@@ -7,6 +7,7 @@ mod calendar;
 mod config;
 mod matcher;
 mod reminder;
+mod telegram;
 
 /// MateCheck - Track when you last met your friends
 ///
@@ -24,6 +25,10 @@ struct Args {
     /// Enable debug mode with verbose output
     #[arg(short, long, default_value_t = false)]
     debug: bool,
+
+    /// Test Telegram bot by sending a message (uses TELEGRAM_CHAT_ID from .env, or specify chat_id)
+    #[arg(long)]
+    test_telegram: Option<Option<String>>,
 }
 
 #[tokio::main]
@@ -36,6 +41,39 @@ async fn main() {
     // Parse command-line arguments
     // This automatically handles --help and --version!
     let args = Args::parse();
+
+    // Handle --test-telegram flag early
+    if let Some(chat_id_override) = args.test_telegram {
+        println!("🤖 Testing Telegram bot...");
+
+        // Load .env file
+        dotenvy::dotenv().ok(); // Don't fail if .env doesn't exist
+
+        let bot_token = std::env::var("TELEGRAM_BOT_TOKEN")
+            .expect("TELEGRAM_BOT_TOKEN not set in .env file");
+
+        // Get chat_id from command line or from .env
+        let chat_id = chat_id_override.unwrap_or_else(|| {
+            std::env::var("TELEGRAM_CHAT_ID")
+                .expect("TELEGRAM_CHAT_ID not set in .env file and no chat_id provided")
+        });
+
+        let client = telegram::TelegramClient::new(bot_token);
+        let message = "🎉 Test message from MateCheck! The Telegram integration is working.";
+
+        println!("📤 Sending message to chat_id: {}", chat_id);
+
+        match client.send_message(&chat_id, message, false).await {
+            Ok(()) => {
+                println!("✅ Message sent successfully!");
+                std::process::exit(0);
+            }
+            Err(e) => {
+                eprintln!("❌ Failed to send message: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
 
     if args.debug {
         println!("[DEBUG] Running in debug mode");

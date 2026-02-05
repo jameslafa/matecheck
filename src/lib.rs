@@ -4,3 +4,4 @@ pub mod calendar;
 pub mod config;
 pub mod matcher;
 pub mod reminder;
+pub mod telegram;
