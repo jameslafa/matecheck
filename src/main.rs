@@ -64,6 +64,7 @@ async fn main() {
             name: "Alice".to_string(),
             email: Some("alice@example.com".to_string()),
             telegram_username: Some("alice_tg".to_string()),
+            aliases: vec![],
             frequency_days: 30,
         };
 
@@ -72,6 +73,7 @@ async fn main() {
             name: "Bob".to_string(),
             email: None,
             telegram_username: None,
+            aliases: vec![],
             frequency_days: 14,
         };
 
@@ -80,6 +82,7 @@ async fn main() {
             name: "Charlie".to_string(),
             email: None,
             telegram_username: Some("charlie_tg".to_string()),
+            aliases: vec![],
             frequency_days: 7,
         };
 
@@ -166,25 +169,22 @@ async fn main() {
     // Load config using the path from CLI args
     let config = match config::Config::load(&args.config) {
         Ok(config) => {
-            println!("✓ Config loaded successfully from: {}", args.config);
-            println!("Found {} friends:", config.friends.len());
-
-            for friend in &config.friends {
-                if args.debug {
-                    // In debug mode, show more details
+            if args.debug {
+                println!("✓ Config loaded: {} friends", config.friends.len());
+                for friend in &config.friends {
                     let email = friend.email.as_ref().map_or("no email", |e| e.as_str());
                     let tg = friend
                         .telegram_username
                         .as_ref()
-                        .map_or("no username", |u| u.as_str());
+                        .map_or("no telegram", |u| u.as_str());
+                    let aliases = if friend.aliases.is_empty() {
+                        "no aliases".to_string()
+                    } else {
+                        friend.aliases.join(", ")
+                    };
                     println!(
-                        "  - [{}] {} ({}) - @{} - meet every {} days",
-                        friend.id, friend.name, email, tg, friend.frequency_days
-                    );
-                } else {
-                    println!(
-                        "  - {} - meet every {} days",
-                        friend.name, friend.frequency_days
+                        "  - [{}] {} ({}) - @{} - aliases: [{}] - every {} days",
+                        friend.id, friend.name, email, tg, aliases, friend.frequency_days
                     );
                 }
             }
@@ -199,13 +199,16 @@ async fn main() {
         }
     };
 
-    // TEST: Calendar API integration
-    println!("\n🔄 Testing Google Calendar connection...");
+    // Connect to Google Calendar
+    if args.debug {
+        println!("\n🔄 Connecting to Google Calendar...");
+    }
 
     match GoogleCalendarClient::new().await {
         Ok(client) => {
-            println!("✓ Calendar client created successfully");
-            println!("  (On first run, a browser will open for OAuth authorization)");
+            if args.debug {
+                println!("✓ Calendar client connected");
+            }
 
             // Fetch events from last 90 days AND future events
             // Future events help us avoid reminding when meeting is already scheduled
@@ -219,17 +222,18 @@ async fn main() {
             let start = Utc::now() - Duration::days(90);
             let end = Utc::now() + Duration::days(max_frequency as i64);
 
-            println!(
-                "\n📅 Fetching events from {} to {}...",
-                start.format("%Y-%m-%d"),
-                end.format("%Y-%m-%d")
-            );
+            if args.debug {
+                println!(
+                    "📅 Fetching events: {} to {}",
+                    start.format("%Y-%m-%d"),
+                    end.format("%Y-%m-%d")
+                );
+            }
 
             match client.fetch_events(start, end).await {
                 Ok(events) => {
-                    println!("✓ Fetched {} events", events.len());
-
                     if args.debug {
+                        println!("✓ Fetched {} events", events.len());
                         for event in events.iter().take(5) {
                             let attendee_list = if event.attendees.is_empty() {
                                 "no attendees".to_string()
@@ -247,40 +251,38 @@ async fn main() {
                         if events.len() > 5 {
                             println!("  ... and {} more", events.len() - 5);
                         }
+                        println!("\n🔔 Checking who needs reminders...");
                     }
-
-                    // TEST: Reminder Engine
-                    println!("\n🔔 Checking who needs reminders...");
 
                     let reminders = reminder::find_friends_needing_reminders(&events, &config.friends);
 
                     if reminders.is_empty() {
-                        println!("✓ Everyone is up to date! No reminders needed.");
+                        println!("✅ Everyone is up to date! No reminders needed.");
                     } else {
-                        println!("✓ Found {} friend(s) who need reminders:\n", reminders.len());
+                        if args.debug {
+                            println!("📋 Found {} friend(s) who need reminders:", reminders.len());
+                            for reminder_info in &reminders {
+                                let days_since_str = match reminder_info.days_since_last_meeting {
+                                    Some(days) => format!("{} days ago", days),
+                                    None => "never met".to_string(),
+                                };
 
-                        for reminder_info in &reminders {
-                            let days_since_str = match reminder_info.days_since_last_meeting {
-                                Some(days) => format!("{} days ago", days),
-                                None => "never met".to_string(),
-                            };
+                                println!("  📌 {} ({})", reminder_info.friend.name, reminder_info.friend.id);
+                                println!("     Last meeting: {}", days_since_str);
+                                println!("     Target frequency: {} days", reminder_info.friend.frequency_days);
+                                println!("     Days overdue: {}", reminder_info.days_overdue);
 
-                            println!("  📌 {} ({})", reminder_info.friend.name, reminder_info.friend.id);
-                            println!("     Last meeting: {}", days_since_str);
-                            println!("     Target frequency: {} days", reminder_info.friend.frequency_days);
-                            println!("     Days overdue: {}", reminder_info.days_overdue);
-
-                            if let Some(email) = &reminder_info.friend.email {
-                                println!("     Email: {}", email);
+                                if let Some(email) = &reminder_info.friend.email {
+                                    println!("     Email: {}", email);
+                                }
+                                if let Some(tg) = &reminder_info.friend.telegram_username {
+                                    println!("     Telegram: @{}", tg);
+                                }
+                                println!();
                             }
-                            if let Some(tg) = &reminder_info.friend.telegram_username {
-                                println!("     Telegram: @{}", tg);
-                            }
-                            println!();
                         }
 
                         // Send Telegram notification
-                        println!("\n📱 Sending Telegram notification...");
 
                         let bot_token = match std::env::var("TELEGRAM_BOT_TOKEN") {
                             Ok(token) => token,
@@ -305,7 +307,7 @@ async fn main() {
 
                         match telegram_client.send_message(&chat_id, &message, true).await {
                             Ok(()) => {
-                                println!("✅ Telegram notification sent successfully!");
+                                println!("✅ Sent reminder for {} friend(s) to Telegram", reminders.len());
                             }
                             Err(e) => {
                                 eprintln!("❌ Failed to send Telegram notification: {}", e);

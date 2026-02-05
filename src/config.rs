@@ -18,6 +18,12 @@ pub struct Friend {
     /// Telegram username (without @) for sending reminders (optional)
     pub telegram_username: Option<String>,
 
+    /// Alternative names/nicknames for this friend (optional)
+    /// Used for matching calendar event titles
+    /// Example: ["Lou", "Loulou"] for friend named "Louise"
+    #[serde(default)]
+    pub aliases: Vec<String>,
+
     /// How often (in days) you want to meet this friend
     pub frequency_days: u32,
 }
@@ -68,6 +74,7 @@ mod tests {
                     name: "Alice".to_string(),
                     email: Some("alice@example.com".to_string()),
                     telegram_username: Some("alice_s".to_string()),
+                    aliases: vec![],
                     frequency_days: 14,
                 },
                 Friend {
@@ -75,6 +82,7 @@ mod tests {
                     name: "Bob".to_string(),
                     email: None,
                     telegram_username: None,
+                    aliases: vec![],
                     frequency_days: 30,
                 },
             ],
@@ -92,6 +100,7 @@ mod tests {
                     name: "Alice".to_string(),
                     email: Some("alice@example.com".to_string()),
                     telegram_username: Some("alice_s".to_string()),
+                    aliases: vec![],
                     frequency_days: 14,
                 },
                 Friend {
@@ -99,6 +108,7 @@ mod tests {
                     name: "Alice Smith".to_string(),
                     email: Some("alice.smith@example.com".to_string()),
                     telegram_username: Some("alice_smith".to_string()),
+                    aliases: vec![],
                     frequency_days: 30,
                 },
             ],

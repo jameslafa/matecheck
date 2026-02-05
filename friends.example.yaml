@@ -19,3 +19,10 @@ friends:
     email: "charlie@example.com"
     telegram_username: "charlie_dev"
     frequency_days: 60  # Want to see Charlie every 2 months
+
+  - id: "louise"
+    name: "Louise Martin"
+    email: "louise@example.com"
+    telegram_username: "lou_m"
+    aliases: ["Lou", "Loulou"]  # Match calendar events mentioning "Lou" or "Loulou"
+    frequency_days: 21  # Want to see Louise every 3 weeks

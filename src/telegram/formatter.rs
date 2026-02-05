@@ -50,6 +50,7 @@ mod tests {
             name: "Alice".to_string(),
             email: Some("alice@example.com".to_string()),
             telegram_username: Some("alice_tg".to_string()),
+            aliases: vec![],
             frequency_days: 30,
         };
 
@@ -73,6 +74,7 @@ mod tests {
             name: "Bob".to_string(),
             email: None,
             telegram_username: Some("bob_tg".to_string()),
+            aliases: vec![],
             frequency_days: 30,
         };
 
@@ -95,6 +97,7 @@ mod tests {
             name: "Alice".to_string(),
             email: None,
             telegram_username: Some("alice_tg".to_string()),
+            aliases: vec![],
             frequency_days: 30,
         };
 
@@ -103,6 +106,7 @@ mod tests {
             name: "Bob".to_string(),
             email: None,
             telegram_username: None,
+            aliases: vec![],
             frequency_days: 14,
         };
 

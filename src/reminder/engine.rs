@@ -92,6 +92,7 @@ mod tests {
             name: name.to_string(),
             email: Some(format!("{}@example.com", id)),
             telegram_username: Some(id.to_string()),
+            aliases: vec![],
             frequency_days,
         }
     }

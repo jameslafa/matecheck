@@ -18,12 +18,22 @@ pub fn match_by_email(event: &Event, friend: &Friend) -> bool {
 
 /// Check if a friend is mentioned in an event title (case-insensitive)
 ///
+/// Checks both the friend's name and any configured aliases.
+///
 /// Example: "Coffee with Alice" matches friend named "Alice"
+/// Example: "Lunch with Lou" matches friend named "Louise" with alias "Lou"
 pub fn match_by_title(event: &Event, friend: &Friend) -> bool {
-    event
-        .title
-        .to_lowercase()
-        .contains(&friend.name.to_lowercase())
+    let title_lower = event.title.to_lowercase();
+
+    // Check if name matches
+    if title_lower.contains(&friend.name.to_lowercase()) {
+        return true;
+    }
+
+    // Check if any alias matches
+    friend.aliases.iter().any(|alias| {
+        title_lower.contains(&alias.to_lowercase())
+    })
 }
 
 /// Find all friends who match an event (either by email or title)
@@ -131,6 +141,7 @@ mod tests {
             name: name.to_string(),
             email: email.map(|e| e.to_string()),
             telegram_username: Some("test".to_string()),
+            aliases: vec![],
             frequency_days: 30,
         }
     }
@@ -186,6 +197,43 @@ mod tests {
         let event = mock_event("Meeting with Bob", vec![]);
 
         assert!(!match_by_title(&event, &friend));
+    }
+
+    #[test]
+    fn test_match_by_title_with_alias() {
+        let mut friend = mock_friend("louise", "Louise", Some("louise@example.com"));
+        friend.aliases = vec!["Lou".to_string(), "Loulou".to_string()];
+
+        // Should match by alias "Lou"
+        let event1 = mock_event("Coffee with Lou", vec![]);
+        assert!(match_by_title(&event1, &friend));
+
+        // Should match by alias "Loulou"
+        let event2 = mock_event("Lunch with Loulou", vec![]);
+        assert!(match_by_title(&event2, &friend));
+
+        // Should still match by name
+        let event3 = mock_event("Dinner with Louise", vec![]);
+        assert!(match_by_title(&event3, &friend));
+    }
+
+    #[test]
+    fn test_match_by_title_alias_case_insensitive() {
+        let mut friend = mock_friend("louise", "Louise", Some("louise@example.com"));
+        friend.aliases = vec!["Lou".to_string()];
+
+        // Should match regardless of case
+        let event = mock_event("Meeting with lou", vec![]);
+        assert!(match_by_title(&event, &friend));
+    }
+
+    #[test]
+    fn test_match_by_title_no_aliases() {
+        let friend = mock_friend("alice", "Alice", Some("alice@example.com"));
+        // friend.aliases is empty by default
+
+        let event = mock_event("Meeting with Alice", vec![]);
+        assert!(match_by_title(&event, &friend));
     }
 
     #[test]
