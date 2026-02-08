@@ -124,7 +124,13 @@ mod tests {
 
     fn mock_event(title: &str, attendees: Vec<String>, days_ago: i64) -> Event {
         let start = Utc::now() - Duration::days(days_ago);
-        Event { title: title.to_string(), attendees, start, end: None }
+        Event {
+            title: title.to_string(),
+            attendees,
+            start,
+            end: None,
+            is_all_day: false,
+        }
     }
 
     #[test]
@@ -211,6 +217,7 @@ mod tests {
             attendees: vec!["alice@example.com".to_string()],
             start: future_start,
             end: None,
+            is_all_day: false,
         };
 
         let events = vec![past_event, future_event];
@@ -236,6 +243,7 @@ mod tests {
             attendees: vec!["alice@example.com".to_string()],
             start: future_start,
             end: None,
+            is_all_day: false,
         };
 
         let events = vec![past_event, future_event];
@@ -259,6 +267,7 @@ mod tests {
             attendees: vec!["alice@example.com".to_string()],
             start: future_start,
             end: None,
+            is_all_day: false,
         };
 
         let events = vec![future_event];

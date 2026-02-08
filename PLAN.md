@@ -299,6 +299,26 @@ friends:
 - **Use Case**: Calendar event "Coffee with Lou" now matches friend "Louise"
 - **Learning**: Default field values with serde, iterator methods
 
+**e) Do Not Disturb Mode**
+
+- Automatically pause ALL friend reminders during specific periods
+- **Why**: Need breaks during vacations, deep work, or personal time without manual intervention
+- **How It Works**:
+  - Create all-day calendar events with 🔕 emoji OR [DND] text (case-insensitive)
+  - Examples: "🔕 Vacation in Paris", "[DND] Focus Week", "[dnd] personal time"
+  - Only all-day events count (timed events like "🔕 Meeting" are ignored)
+  - Works with single-day and multi-day events
+- **Implementation**:
+  - Added `is_all_day: bool` field to Event struct for explicit event type tracking
+  - Updated `convert_event()` in `calendar/client.rs` to detect all-day vs timed events
+  - Created new `calendar/dnd.rs` module with DND detection logic
+  - Added DND check in `main.rs` after event fetching, before reminder calculation
+  - Early exit with appropriate debug/user messages when DND is active
+  - Comprehensive test suite: 27 tests covering all DND scenarios and edge cases
+  - Updated all existing tests to include new `is_all_day` field (75 tests total)
+- **Result**: Calendar-based, stateless DND that requires no configuration or database
+- **Learning**: Pattern matching with filters, Option handling, early return patterns
+
 **16. Other Future Ideas**
 
 - Firebase integration for state persistence
@@ -373,6 +393,7 @@ All core phases (1-8) complete! MateCheck is deployed and running automatically 
 - ✅ Recurring event filtering (birthdays excluded)
 - ✅ Automatic 15% early reminder buffer
 - ✅ Future meeting awareness
+- ✅ Do Not Disturb mode (calendar-based, automatic pause)
 - ✅ Telegram notifications with clickable links
 - ✅ WhatsApp link support
 - ✅ GitHub Actions automation (weekdays 8am, weekends 9:30am Berlin time)
@@ -387,9 +408,10 @@ All core phases (1-8) complete! MateCheck is deployed and running automatically 
 ### Session Info
 
 - **Last Updated**: 2026-02-08
-- **Total Commits**: 10+
-- **Lines of Code**: ~2000 (src/ + tests)
-- **Learning Progress**: Completed Rust fundamentals, async/await, OAuth, CI/CD
+- **Total Commits**: 11+
+- **Test Suite**: 75 passing tests (including 27 DND tests)
+- **Lines of Code**: ~2200 (src/ + tests)
+- **Learning Progress**: Completed Rust fundamentals, async/await, OAuth, CI/CD, pattern matching
 
 ## Notes & Decisions
 

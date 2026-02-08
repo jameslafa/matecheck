@@ -254,6 +254,20 @@ async fn main() {
                         if events.len() > 5 {
                             println!("  ... and {} more", events.len() - 5);
                         }
+                    }
+
+                    // Check Do Not Disturb mode
+                    if let Some(dnd_event_title) = calendar::dnd::is_dnd_active(&events, Utc::now()) {
+                        if args.debug {
+                            println!("🔕 Do Not Disturb is active: \"{}\"", dnd_event_title);
+                            println!("   Skipping all reminders.");
+                        } else {
+                            println!("🔕 Do Not Disturb mode active - no reminders today.");
+                        }
+                        return;
+                    }
+
+                    if args.debug {
                         println!("\n🔔 Checking who needs reminders...");
                     }
 

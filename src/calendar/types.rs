@@ -18,6 +18,9 @@ pub struct Event {
 
     /// When the event ends (optional - some events are all-day)
     pub end: Option<DateTime<Utc>>,
+
+    /// Whether this is an all-day event (vs a timed event)
+    pub is_all_day: bool,
 }
 
 impl Event {
@@ -48,6 +51,7 @@ mod tests {
             attendees: vec!["alice@example.com".to_string()],
             start,
             end: Some(end),
+            is_all_day: false,
         };
 
         assert_eq!(event.title, "Coffee with Alice");
@@ -63,6 +67,7 @@ mod tests {
             attendees: vec!["alice@example.com".to_string()],
             start,
             end: None,
+            is_all_day: false,
         };
 
         let event_without = Event {
@@ -70,6 +75,7 @@ mod tests {
             attendees: vec![],
             start,
             end: None,
+            is_all_day: false,
         };
 
         assert!(event_with.has_attendees());
@@ -88,6 +94,7 @@ mod tests {
             ],
             start,
             end: None,
+            is_all_day: false,
         };
 
         assert!(event.has_attendee("alice@example.com"));

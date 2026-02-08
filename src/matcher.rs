@@ -155,7 +155,13 @@ mod tests {
     }
 
     fn mock_event(title: &str, attendees: Vec<String>) -> Event {
-        Event { title: title.to_string(), attendees, start: Utc::now(), end: None }
+        Event {
+            title: title.to_string(),
+            attendees,
+            start: Utc::now(),
+            end: None,
+            is_all_day: false,
+        }
     }
 
     #[test]
@@ -515,6 +521,12 @@ mod tests {
         start: DateTime<Utc>,
         end: Option<DateTime<Utc>>,
     ) -> Event {
-        Event { title: title.to_string(), attendees, start, end }
+        Event {
+            title: title.to_string(),
+            attendees,
+            start,
+            end,
+            is_all_day: false,
+        }
     }
 }

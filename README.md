@@ -25,6 +25,11 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
   - 45 days → remind at day 38 (7 days early)
 - **Future Meeting Awareness** - Skips reminders if meeting already scheduled
 - **Friend Aliases** - Match calendar events with nicknames (e.g., "Lou" matches "Louise")
+- **Do Not Disturb Mode** - Automatically pauses ALL reminders during specific periods
+  - Create all-day calendar events with 🔕 emoji or [DND] text
+  - Examples: "🔕 Vacation in Paris", "[DND] Focus Week"
+  - Works with single-day and multi-day events
+  - Only all-day events count (timed events ignored)
 
 ### Notifications
 - **Telegram Integration** - Sends formatted reminders with clickable links
@@ -44,7 +49,7 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
 - **Key Crates:** tokio, serde, chrono, clap, reqwest
 - **Auth:** OAuth 2.0 for Google Calendar
 - **CI/CD:** GitHub Actions
-- **Tests:** 54 passing tests
+- **Tests:** 75 passing tests
 
 ## Project Structure
 
@@ -55,7 +60,8 @@ matecheck/
 │   ├── config.rs            # Friend configuration loader
 │   ├── calendar/            # Google Calendar integration
 │   │   ├── client.rs        # OAuth & API client
-│   │   └── types.rs         # Event types
+│   │   ├── types.rs         # Event types
+│   │   └── dnd.rs           # Do Not Disturb detection
 │   ├── matcher.rs           # Event-to-friend matching logic
 │   ├── reminder/
 │   │   └── engine.rs        # Reminder calculation logic
@@ -170,14 +176,15 @@ friends:
 ## How It Works
 
 1. **Fetches Calendar Events** - Gets events from last 90 days + future events
-2. **Matches Friends** - Identifies which events involved which friends
-3. **Calculates Last Meeting** - Finds most recent past meeting per friend
-4. **Checks Future Meetings** - Looks for upcoming scheduled meetings
-5. **Applies Smart Logic:**
+2. **Checks Do Not Disturb** - Exits early if DND event detected (skips all reminders)
+3. **Matches Friends** - Identifies which events involved which friends
+4. **Calculates Last Meeting** - Finds most recent past meeting per friend
+5. **Checks Future Meetings** - Looks for upcoming scheduled meetings
+6. **Applies Smart Logic:**
    - Reminds at 85% of target frequency (15% buffer)
    - Skips reminder if meeting already scheduled
    - Ignores recurring events (birthdays)
-6. **Sends Telegram Message** - Formatted list with clickable links
+7. **Sends Telegram Message** - Formatted list with clickable links
 
 ## Development
 

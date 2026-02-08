@@ -55,25 +55,32 @@ impl GoogleCalendarClient {
 
     /// Converts a Google Calendar API event to our simplified Event type
     pub(crate) fn convert_event(google_event: &GoogleEvent) -> Result<Event> {
-        // Handle both timed events (date_time) and all-day events (date)
-        let start = google_event
+        // Detect event type and extract times
+        let (start, end, is_all_day) = google_event
             .start
             .as_ref()
             .and_then(|dt| {
-                // Try date_time first (timed events)
-                dt.date_time.or_else(|| {
-                    // Fall back to date field (all-day events)
-                    // Convert NaiveDate to DateTime<Utc> at midnight
-                    dt.date.map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc())
-                })
+                if let Some(date_time) = dt.date_time {
+                    // Timed event
+                    let end_time = google_event
+                        .end
+                        .as_ref()
+                        .and_then(|e| e.date_time);
+                    Some((date_time, end_time, false))
+                } else if let Some(date) = dt.date {
+                    // All-day event
+                    let start_time = date.and_hms_opt(0, 0, 0).unwrap().and_utc();
+                    let end_time = google_event
+                        .end
+                        .as_ref()
+                        .and_then(|e| e.date)
+                        .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc());
+                    Some((start_time, end_time, true))
+                } else {
+                    None
+                }
             })
             .ok_or_else(|| anyhow::anyhow!("Event has no start"))?;
-
-        let end = google_event.end.as_ref().and_then(|dt| {
-            dt.date_time.or_else(|| {
-                dt.date.map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc())
-            })
-        });
 
         let attendees: Vec<String> = google_event
             .attendees
@@ -91,6 +98,7 @@ impl GoogleCalendarClient {
             attendees,
             start,
             end,
+            is_all_day,
         })
     }
 }
