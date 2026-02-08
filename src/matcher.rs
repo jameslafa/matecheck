@@ -148,6 +148,7 @@ mod tests {
             name: name.to_string(),
             email: email.map(|e| e.to_string()),
             telegram_username: Some("test".to_string()),
+            whatsapp_phone: None,
             aliases: vec![],
             frequency_days: 30,
         }

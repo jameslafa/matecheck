@@ -110,6 +110,7 @@ mod tests {
             name: name.to_string(),
             email: Some(format!("{}@example.com", id)),
             telegram_username: Some(id.to_string()),
+            whatsapp_phone: None,
             aliases: vec![],
             frequency_days,
         }

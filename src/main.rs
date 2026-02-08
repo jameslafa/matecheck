@@ -64,6 +64,7 @@ async fn main() {
             name: "Alice".to_string(),
             email: Some("alice@example.com".to_string()),
             telegram_username: Some("alice_tg".to_string()),
+            whatsapp_phone: None,
             aliases: vec![],
             frequency_days: 30,
         };
@@ -73,6 +74,7 @@ async fn main() {
             name: "Bob".to_string(),
             email: None,
             telegram_username: None,
+            whatsapp_phone: None,
             aliases: vec![],
             frequency_days: 14,
         };
@@ -82,6 +84,7 @@ async fn main() {
             name: "Charlie".to_string(),
             email: None,
             telegram_username: Some("charlie_tg".to_string()),
+            whatsapp_phone: None,
             aliases: vec![],
             frequency_days: 7,
         };

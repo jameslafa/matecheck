@@ -23,9 +23,22 @@ pub fn format_reminder_message(reminders: &[ReminderInfo]) -> String {
             None => "never met".to_string(),
         };
 
-        // Make the friend's name a clickable link if they have Telegram
+        // Make the friend's name a clickable link
+        // Priority: Telegram username > WhatsApp > plain name
         let friend_name = if let Some(ref username) = reminder.friend.telegram_username {
-            format!("[{}](https://t.me/{})", reminder.friend.name, username)
+            if !username.is_empty() {
+                format!("[{}](https://t.me/{})", reminder.friend.name, username)
+            } else if let Some(ref phone) = reminder.friend.whatsapp_phone {
+                // Strip + and spaces from phone number for WhatsApp link
+                let clean_phone = phone.replace('+', "").replace(' ', "");
+                format!("[{}](https://wa.me/{})", reminder.friend.name, clean_phone)
+            } else {
+                reminder.friend.name.clone()
+            }
+        } else if let Some(ref phone) = reminder.friend.whatsapp_phone {
+            // Strip + and spaces from phone number for WhatsApp link
+            let clean_phone = phone.replace('+', "").replace(' ', "");
+            format!("[{}](https://wa.me/{})", reminder.friend.name, clean_phone)
         } else {
             reminder.friend.name.clone()
         };
@@ -50,6 +63,7 @@ mod tests {
             name: "Alice".to_string(),
             email: Some("alice@example.com".to_string()),
             telegram_username: Some("alice_tg".to_string()),
+            whatsapp_phone: None,
             aliases: vec![],
             frequency_days: 30,
         };
@@ -74,6 +88,7 @@ mod tests {
             name: "Bob".to_string(),
             email: None,
             telegram_username: Some("bob_tg".to_string()),
+            whatsapp_phone: None,
             aliases: vec![],
             frequency_days: 30,
         };
@@ -97,6 +112,7 @@ mod tests {
             name: "Alice".to_string(),
             email: None,
             telegram_username: Some("alice_tg".to_string()),
+            whatsapp_phone: None,
             aliases: vec![],
             frequency_days: 30,
         };
@@ -106,6 +122,7 @@ mod tests {
             name: "Bob".to_string(),
             email: None,
             telegram_username: None,
+            whatsapp_phone: None,
             aliases: vec![],
             frequency_days: 14,
         };
@@ -129,5 +146,84 @@ mod tests {
         assert!(message.contains("Bob"));
         assert!(message.contains("45 days"));
         assert!(message.contains("20 days"));
+    }
+
+    #[test]
+    fn test_format_with_whatsapp() {
+        let friend = Friend {
+            id: "david".to_string(),
+            name: "David".to_string(),
+            email: None,
+            telegram_username: None,
+            whatsapp_phone: Some("4915734630875".to_string()),
+            aliases: vec![],
+            frequency_days: 30,
+        };
+
+        let reminder = ReminderInfo {
+            friend,
+            days_since_last_meeting: Some(35),
+            days_overdue: 5,
+        };
+
+        let message = format_reminder_message(&[reminder]);
+
+        // Should contain WhatsApp link
+        assert!(message.contains("David"));
+        assert!(message.contains("https://wa.me/4915734630875"));
+        assert!(message.contains("35 days"));
+    }
+
+    #[test]
+    fn test_empty_telegram_falls_back_to_whatsapp() {
+        let friend = Friend {
+            id: "annie".to_string(),
+            name: "Annie".to_string(),
+            email: Some("annie@example.com".to_string()),
+            telegram_username: Some("".to_string()),  // Empty!
+            whatsapp_phone: Some("4915734630875".to_string()),
+            aliases: vec![],
+            frequency_days: 60,
+        };
+
+        let reminder = ReminderInfo {
+            friend,
+            days_since_last_meeting: Some(65),
+            days_overdue: 5,
+        };
+
+        let message = format_reminder_message(&[reminder]);
+
+        // Should fall back to WhatsApp
+        assert!(message.contains("Annie"));
+        assert!(message.contains("https://wa.me/4915734630875"));
+        assert!(!message.contains("t.me/")); // No broken Telegram link
+    }
+
+    #[test]
+    fn test_whatsapp_strips_plus_and_spaces() {
+        let friend = Friend {
+            id: "sarah".to_string(),
+            name: "Sarah".to_string(),
+            email: None,
+            telegram_username: None,
+            whatsapp_phone: Some("+49 157 3463 0875".to_string()),  // With + and spaces
+            aliases: vec![],
+            frequency_days: 30,
+        };
+
+        let reminder = ReminderInfo {
+            friend,
+            days_since_last_meeting: Some(40),
+            days_overdue: 10,
+        };
+
+        let message = format_reminder_message(&[reminder]);
+
+        // Should strip + and spaces
+        assert!(message.contains("Sarah"));
+        assert!(message.contains("https://wa.me/4915734630875"));
+        assert!(!message.contains("+")); // No + in the link
+        assert!(!message.contains(" 157")); // No spaces
     }
 }

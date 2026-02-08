@@ -18,6 +18,11 @@ pub struct Friend {
     /// Telegram username (without @) for sending reminders (optional)
     pub telegram_username: Option<String>,
 
+    /// WhatsApp phone number in international format (+ and spaces auto-stripped)
+    /// Example: "+49 157 3463 0875" or "4915734630875" → https://wa.me/4915734630875
+    #[serde(default)]
+    pub whatsapp_phone: Option<String>,
+
     /// Alternative names/nicknames for this friend (optional)
     /// Used for matching calendar event titles
     /// Example: ["Lou", "Loulou"] for friend named "Louise"
@@ -87,6 +92,7 @@ mod tests {
                     name: "Alice".to_string(),
                     email: Some("alice@example.com".to_string()),
                     telegram_username: Some("alice_s".to_string()),
+                    whatsapp_phone: None,
                     aliases: vec![],
                     frequency_days: 14,
                 },
@@ -95,6 +101,7 @@ mod tests {
                     name: "Bob".to_string(),
                     email: None,
                     telegram_username: None,
+                    whatsapp_phone: None,
                     aliases: vec![],
                     frequency_days: 30,
                 },
@@ -113,6 +120,7 @@ mod tests {
                     name: "Alice".to_string(),
                     email: Some("alice@example.com".to_string()),
                     telegram_username: Some("alice_s".to_string()),
+                    whatsapp_phone: None,
                     aliases: vec![],
                     frequency_days: 14,
                 },
@@ -121,6 +129,7 @@ mod tests {
                     name: "Alice Smith".to_string(),
                     email: Some("alice.smith@example.com".to_string()),
                     telegram_username: Some("alice_smith".to_string()),
+                    whatsapp_phone: None,
                     aliases: vec![],
                     frequency_days: 30,
                 },

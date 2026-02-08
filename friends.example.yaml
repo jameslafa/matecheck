@@ -31,3 +31,9 @@ friends:
     telegram_username: "lou_m"
     aliases: ["Lou", "Loulou"]  # Match calendar events mentioning "Lou" or "Loulou"
     frequency_days: 21  # Want to see Louise every 3 weeks (automatic 3-day buffer)
+
+  - id: "david"
+    name: "David Chen"
+    email: "david@example.com"
+    whatsapp_phone: "+49 157 3463 0875"  # Any format - + and spaces auto-stripped
+    frequency_days: 30  # Creates https://wa.me/4915734630875 link in reminders
