@@ -1,38 +1,50 @@
 # MateCheck 🤝
 
-A Rust application that helps you stay in touch with friends by tracking calendar meetings and sending reminders when it's been too long.
+A Rust application that helps you stay in touch with friends by tracking calendar meetings and sending automated reminders via Telegram and WhatsApp.
 
-**Status:** 🚧 Work in Progress (Phase 4/6 complete)
+**Status:** ✅ Production Ready - Fully automated with GitHub Actions
 
 ## What It Does
 
-MateCheck connects to your Google Calendar, identifies meetings with friends, and reminds you when you haven't seen someone in a while based on your configured frequency preferences.
+MateCheck connects to your Google Calendar, identifies meetings with friends, and sends you Telegram reminders when you haven't seen someone in a while. It runs automatically every day via GitHub Actions.
 
-### Current Features ✅
+## Features ✅
 
-- **Google Calendar Integration** - Fetches events from the last 90 days via OAuth 2.0
+### Core Functionality
+- **Google Calendar Integration** - Fetches events with OAuth 2.0 authentication
 - **Smart Friend Matching** - Matches events to friends by:
   - Email addresses (primary method)
-  - Event titles (fallback for friends without emails)
-- **Last Meeting Tracking** - Finds the most recent meeting with each friend
-- **Reminder Engine** - Identifies friends who are overdue based on your frequency preferences
-- **Configurable Frequencies** - Set how often you want to see each friend (in days)
+  - Event titles with name/alias matching (fallback)
+- **All-Day Event Support** - Tracks both timed and all-day calendar events
+- **Recurring Event Filtering** - Automatically filters out birthdays and anniversaries
 
-### Coming Soon 🚧
+### Smart Reminders
+- **Automatic Early Warnings** - Reminds you 15% before your target frequency
+  - 10 days → remind at day 8 (2 days early)
+  - 30 days → remind at day 25 (5 days early)
+  - 45 days → remind at day 38 (7 days early)
+- **Future Meeting Awareness** - Skips reminders if meeting already scheduled
+- **Friend Aliases** - Match calendar events with nicknames (e.g., "Lou" matches "Louise")
 
-- **Telegram Notifications** - Send reminders via Telegram bot (Phase 5)
-- **GitHub Actions Automation** - Run daily checks automatically (Phase 6)
-- **Future Enhancements** (Phase 7):
-  - Check future calendar for scheduled meetings
-  - Early reminder threshold (remind before overdue)
-  - Filter recurring events (birthdays, anniversaries)
+### Notifications
+- **Telegram Integration** - Sends formatted reminders with clickable links
+- **WhatsApp Support** - Creates WhatsApp deep links for friends without Telegram
+- **Smart Fallback** - Telegram username → WhatsApp → plain name
+
+### Automation
+- **GitHub Actions** - Runs automatically on schedule
+  - Weekdays: 8:00 AM Berlin time
+  - Weekends: 9:30 AM Berlin time
+- **Manual Testing** - Can be triggered manually for testing
 
 ## Tech Stack
 
-- **Language:** Rust 🦀
+- **Language:** Rust 🦀 (2021 edition)
 - **APIs:** Google Calendar API v3, Telegram Bot API
-- **Key Crates:** tokio (async), serde (serialization), chrono (dates), clap (CLI)
+- **Key Crates:** tokio, serde, chrono, clap, reqwest
 - **Auth:** OAuth 2.0 for Google Calendar
+- **CI/CD:** GitHub Actions
+- **Tests:** 54 passing tests
 
 ## Project Structure
 
@@ -42,22 +54,32 @@ matecheck/
 │   ├── main.rs              # CLI entry point
 │   ├── config.rs            # Friend configuration loader
 │   ├── calendar/            # Google Calendar integration
+│   │   ├── client.rs        # OAuth & API client
+│   │   └── types.rs         # Event types
 │   ├── matcher.rs           # Event-to-friend matching logic
-│   └── reminder/            # Reminder engine
+│   ├── reminder/
+│   │   └── engine.rs        # Reminder calculation logic
+│   └── telegram/            # Telegram integration
+│       ├── client.rs        # Bot API client
+│       └── formatter.rs     # Message formatting
+├── .github/
+│   └── workflows/
+│       └── daily-check.yml  # Automated deployment
 ├── friends.yaml             # Your friends config (gitignored)
 ├── friends.example.yaml     # Example configuration
 └── Cargo.toml              # Rust dependencies
 ```
 
-## Setup (for Development)
+## Setup
 
 ### Prerequisites
 
 - Rust (latest stable)
 - Google Calendar API credentials
-- (Optional) Telegram bot token
+- Telegram bot token
+- GitHub account (for automation)
 
-### Quick Start
+### Local Development
 
 1. **Clone and configure:**
    ```bash
@@ -68,63 +90,122 @@ matecheck/
    ```
 
 2. **Set up Google Calendar API:**
-   - Create a project in Google Cloud Console
+   - Create a project in [Google Cloud Console](https://console.cloud.google.com/)
    - Enable Google Calendar API
-   - Create OAuth 2.0 credentials
+   - Create OAuth 2.0 credentials (Desktop app)
    - Download as `credentials.json` in project root
+   - Run once locally to authenticate: `cargo run -- --debug`
 
-3. **Run:**
+3. **Set up Telegram Bot:**
+   - Create bot via [@BotFather](https://t.me/botfather)
+   - Get your chat ID: `cargo run --bin get_chat_id`
+   - Create `.env` file:
+     ```
+     TELEGRAM_BOT_TOKEN=your_bot_token
+     TELEGRAM_CHAT_ID=your_chat_id
+     ```
+
+4. **Run locally:**
    ```bash
-   cargo run --bin matecheck -- --debug
+   cargo run                    # Normal run
+   cargo run -- --debug         # Debug mode with verbose output
+   cargo run -- --test-telegram # Test Telegram integration
    ```
 
-   On first run, a browser will open for Google OAuth authorization.
+### GitHub Actions Deployment
+
+1. **Push code to GitHub:**
+   ```bash
+   git push origin master
+   ```
+
+2. **Add repository secrets** (Settings → Secrets → Actions):
+   - `GOOGLE_CREDENTIALS` - Content of `credentials.json`
+   - `GOOGLE_OAUTH_TOKEN` - Content of `token.json`
+   - `TELEGRAM_BOT_TOKEN` - Your bot token
+   - `TELEGRAM_CHAT_ID` - Your chat ID
+   - `FRIENDS_CONFIG` - Content of `friends.yaml`
+
+3. **Test workflow:**
+   - Go to Actions tab
+   - Select "Daily Friend Reminder Check"
+   - Click "Run workflow"
+
+4. **Done!** Reminders run automatically on schedule.
 
 ## Configuration
 
-Create `friends.yaml` with your friends:
+### friends.yaml Example
 
 ```yaml
 friends:
-  - id: "alice"                    # Unique identifier
-    name: "Alice"
-    email: "alice@example.com"     # For email matching
-    telegram_username: "alice_tg"  # For reminders (no @ prefix)
-    frequency_days: 14             # Want to see every 2 weeks
+  - id: "alice"
+    name: "Alice Smith"
+    email: "alice@example.com"
+    telegram_username: "alice_tg"
+    frequency_days: 30
 
   - id: "bob"
-    name: "Bob"
-    email: ~                       # No email = match by title only
-    telegram_username: ~           # Optional
-    frequency_days: 30
+    name: "Bob Johnson"
+    email: "bob@example.com"
+    whatsapp_phone: "+1 234 567 8900"  # For friends without Telegram
+    aliases: ["Bobby"]                  # Match "Bobby" in calendar
+    frequency_days: 14
+
+  - id: "charlie"
+    name: "Charlie"
+    frequency_days: 60                  # No contact info = plain name
 ```
+
+### Field Reference
+
+- `id` (required) - Unique identifier
+- `name` (required) - Friend's display name
+- `email` (optional) - For calendar matching
+- `telegram_username` (optional) - Creates t.me/username link
+- `whatsapp_phone` (optional) - Creates WhatsApp link (+ and spaces auto-stripped)
+- `aliases` (optional) - Alternative names for calendar matching
+- `frequency_days` (required) - How often you want to meet (in days)
+
+## How It Works
+
+1. **Fetches Calendar Events** - Gets events from last 90 days + future events
+2. **Matches Friends** - Identifies which events involved which friends
+3. **Calculates Last Meeting** - Finds most recent past meeting per friend
+4. **Checks Future Meetings** - Looks for upcoming scheduled meetings
+5. **Applies Smart Logic:**
+   - Reminds at 85% of target frequency (15% buffer)
+   - Skips reminder if meeting already scheduled
+   - Ignores recurring events (birthdays)
+6. **Sends Telegram Message** - Formatted list with clickable links
 
 ## Development
 
-This is a learning project built step-by-step following a didactic approach. See `plan.md` for the full implementation roadmap.
+### Run Tests
+```bash
+cargo test                    # All tests
+cargo test --lib              # Library tests only
+cargo test test_name          # Specific test
+```
 
-### Current Status
-
-- ✅ Phase 1: Foundation (config loading, CLI)
-- ✅ Phase 2: Google Calendar Integration
-- ✅ Phase 3: Friend Matching Logic
-- ✅ Phase 4: Reminder Logic
-- 🚧 Phase 5: Telegram Integration (next)
-- 🚧 Phase 6: Deployment (GitHub Actions)
-
-## Learning Goals
-
-This project is a tutorial for learning Rust, coming from a Go background, with emphasis on:
-- Rust ownership and borrowing
-- Error handling with Result types
-- Async/await patterns
-- Trait-based design
-- Testing and modular architecture
+### Utilities
+```bash
+cargo run --bin get_chat_id   # Get your Telegram chat ID
+```
 
 ## License
 
-MIT License - feel free to use, modify, and distribute!
+MIT License - See [LICENSE](LICENSE) file
 
----
+## Learning Project
 
-Built with 🦀 Rust and ☕ coffee
+This project was built as a learning exercise to understand Rust coming from a Go background. It covers:
+- Rust ownership, borrowing, and lifetimes
+- Async/await with tokio
+- OAuth 2.0 authentication
+- API integration (Google Calendar, Telegram)
+- GitHub Actions CI/CD
+- Error handling with Result types
+- Testing and test-driven development
+
+Built with assistance from Claude Code.
