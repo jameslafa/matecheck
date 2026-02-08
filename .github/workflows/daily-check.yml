@@ -1,0 +1,72 @@
+# GitHub Actions workflow for automated friend reminders
+#
+# SETUP INSTRUCTIONS:
+# 1. Go to your repo Settings → Secrets and variables → Actions
+# 2. Add these Repository secrets:
+#    - GOOGLE_CREDENTIALS: Content of your credentials.json file
+#    - GOOGLE_OAUTH_TOKEN: Content of your token.json file
+#    - TELEGRAM_BOT_TOKEN: Your bot token from @BotFather
+#    - TELEGRAM_CHAT_ID: Your chat ID (run locally: cargo run --bin get_chat_id)
+#    - FRIENDS_CONFIG: Content of your friends.yaml file
+#
+# SCHEDULE:
+# - Weekdays (Mon-Fri): 8:00 AM Berlin time (CET/winter)
+# - Weekends (Sat-Sun): 9:30 AM Berlin time (CET/winter)
+# Note: During CEST (summer), runs 1 hour later. Adjust cron if needed.
+#
+# TESTING:
+# - Use "Actions" tab → "Daily Friend Reminder Check" → "Run workflow"
+
+name: Daily Friend Reminder Check
+
+on:
+  # Weekdays at 8:00 AM Berlin time (7:00 AM UTC in winter/CET)
+  # Note: During summer (CEST), this runs at 9:00 AM Berlin time
+  schedule:
+    - cron: '0 7 * * 1-5'  # Monday-Friday at 7:00 AM UTC
+    - cron: '30 8 * * 0,6'  # Saturday-Sunday at 8:30 AM UTC (9:30 AM CET)
+
+  # Allow manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  check-reminders:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Create credentials.json from secret
+        run: |
+          echo '${{ secrets.GOOGLE_CREDENTIALS }}' > credentials.json
+          chmod 600 credentials.json
+
+      - name: Create token.json from secret
+        run: |
+          echo '${{ secrets.GOOGLE_OAUTH_TOKEN }}' > token.json
+          chmod 600 token.json
+
+      - name: Create friends.yaml from secret
+        run: |
+          echo '${{ secrets.FRIENDS_CONFIG }}' > friends.yaml
+          chmod 600 friends.yaml
+
+      - name: Create .env file
+        run: |
+          echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > .env
+          echo "TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}" >> .env
+          chmod 600 .env
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Run reminder check
+        run: ./target/release/matecheck
+        env:
+          TZ: Europe/Berlin  # Set timezone for logging
