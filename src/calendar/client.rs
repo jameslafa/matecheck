@@ -55,13 +55,25 @@ impl GoogleCalendarClient {
 
     /// Converts a Google Calendar API event to our simplified Event type
     pub(crate) fn convert_event(google_event: &GoogleEvent) -> Result<Event> {
+        // Handle both timed events (date_time) and all-day events (date)
         let start = google_event
             .start
             .as_ref()
-            .and_then(|dt| dt.date_time)
+            .and_then(|dt| {
+                // Try date_time first (timed events)
+                dt.date_time.or_else(|| {
+                    // Fall back to date field (all-day events)
+                    // Convert NaiveDate to DateTime<Utc> at midnight
+                    dt.date.map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc())
+                })
+            })
             .ok_or_else(|| anyhow::anyhow!("Event has no start"))?;
 
-        let end = google_event.end.as_ref().and_then(|dt| dt.date_time);
+        let end = google_event.end.as_ref().and_then(|dt| {
+            dt.date_time.or_else(|| {
+                dt.date.map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc())
+            })
+        });
 
         let attendees: Vec<String> = google_event
             .attendees
@@ -120,8 +132,11 @@ impl CalendarClient for GoogleCalendarClient {
 
         let items = events.items.unwrap_or_default();
 
+        // Filter out recurring event instances (birthdays, anniversaries, etc.)
+        // These don't represent actual meetings, just automated calendar entries
         let converted: Vec<Event> = items
             .iter()
+            .filter(|e| e.recurring_event_id.is_none())
             .filter_map(|e| Self::convert_event(e).ok())
             .collect();
 

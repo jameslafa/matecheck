@@ -45,20 +45,27 @@ pub fn find_matches<'a>(event: &Event, friends: &'a [Friend]) -> Vec<&'a Friend>
         .collect()
 }
 
-/// Find the most recent event for each friend
+/// Find the most recent PAST event for each friend
 ///
 /// Returns a HashMap where:
 /// - Key: friend.id
 /// - Value: Option<Event> - Some(event) if any meeting was found, None if no meetings
 ///
 /// Events are matched to friends using both email and title matching.
-/// When multiple events match a friend, only the most recent is kept.
+/// When multiple events match a friend, only the most recent PAST event is kept.
+/// Future events are ignored (use find_next_meetings for upcoming events).
 pub fn find_last_meetings(events: &[Event], friends: &[Friend]) -> HashMap<String, Option<Event>> {
+    let now = Utc::now();
     let mut last_event_by_friend: HashMap<String, Option<Event>> = HashMap::new();
     for friend in friends {
         last_event_by_friend.insert(friend.id.clone(), None);
     }
     for event in events {
+        // Skip future events - only consider past/present
+        if event.start > now {
+            continue;
+        }
+
         for matched_friend in find_matches(&event, friends) {
             let current = last_event_by_friend.get_mut(&matched_friend.id).unwrap();
 

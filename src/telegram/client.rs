@@ -36,6 +36,7 @@ impl TelegramClient {
     ///
     /// # Example
     /// ```
+    /// use matecheck::telegram::TelegramClient;
     /// let client = TelegramClient::new("123456:ABC-DEF".to_string());
     /// ```
     pub fn new(bot_token: String) -> Self {

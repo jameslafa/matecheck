@@ -239,33 +239,28 @@ friends:
 - **Note**: This means max gap could be 2N days, but that's intentional and user-controlled
 - **Implementation**: Fetch future events separately, check in reminder engine
 
-**b) Early Reminder Threshold**
+**b) Early Reminder Threshold** ✅ COMPLETE
 - Send reminders BEFORE hitting the target, not after
 - **Goal**: Give time to schedule meeting before going overdue
-- **Logic**: Remind at (frequency_days - buffer_days)
-- **Example**:
-  - Matilda: frequency = 10 days, buffer = 2 days
-  - Last meeting: 8 days ago
-  - Result: Send reminder now (before hitting 10 days)
-- **Configuration**: Add to friends.yaml or global settings
-  ```yaml
-  settings:
-    reminder_buffer_days: 2  # Default buffer
+- **Logic**: Automatic 15% buffer calculation
+- **Implementation**: `buffer = round(frequency * 0.15).max(1)`
+- **Results**:
+  - 10 days → 2 day buffer (remind at day 8)
+  - 30 days → 5 day buffer (remind at day 25)
+  - 45 days → 7 day buffer (remind at day 38)
+- **Configuration**: Zero-config! Automatically calculated, no setup needed
+- **Learning**: Sub-linear scaling, automatic calculation, zero-config UX design
 
-  friends:
-    - id: "matilda"
-      frequency_days: 10
-      # Uses default buffer of 2 days
-  ```
-
-**c) Filter Recurring Events**
+**c) Filter Recurring Events** ✅ COMPLETE
 - Skip recurring events (birthdays, anniversaries) when matching
 - **Why**: Recurring events don't represent actual plans to meet
-- **Implementation**: Filter in `calendar/client.rs` during API conversion
+- **Implementation**: Filter in `calendar/client.rs` during event fetching
 - **Logic**: Skip events where `recurring_event_id.is_some()`
 - **Result**: Recurring events simply don't exist in our internal Event list
+- **Code**: Added `.filter(|e| e.recurring_event_id.is_none())` before conversion
+- **Learning**: Iterator chaining, Google Calendar API recurring event detection
 
-**d) Friend Name Aliases**
+**d) Friend Name Aliases** ✅ COMPLETE
 - Support multiple names/aliases for the same friend
 - **Why**: Friends may be called by different names (Lou/Louise, Mike/Michael, nicknames)
 - **Example**:
@@ -273,15 +268,16 @@ friends:
   friends:
     - id: "louise"
       name: "Louise"
-      aliases: ["Lou", "Loulou"]
+      aliases: ["Lou", "Loulou"]  # Don't repeat main name
       email: "louise@example.com"
       frequency_days: 14
   ```
 - **Implementation**:
-  - Add optional `aliases: Vec<String>` field to Friend struct
-  - Update title matching in `matcher.rs` to check aliases
-  - Match if event title contains friend name OR any alias
-- **Use Case**: Calendar event "Coffee with Lou" matches friend "Louise"
+  - Added optional `aliases: Vec<String>` field to Friend struct with `#[serde(default)]`
+  - Updated `match_by_title()` in `matcher.rs` to check name OR any alias (case-insensitive)
+  - Added tests for alias matching (all 48 tests passing)
+- **Use Case**: Calendar event "Coffee with Lou" now matches friend "Louise"
+- **Learning**: Default field values with serde, iterator methods
 
 **16. Other Future Ideas**
 - Firebase integration for state persistence
