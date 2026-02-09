@@ -38,6 +38,7 @@ impl<'a> FriendsRepository<'a> {
     ///
     /// # Errors
     /// Returns error if Firestore query fails or friend not found
+    #[allow(dead_code)]
     pub async fn get(&self, id: &str) -> Result<Option<Friend>> {
         let friend: Option<Friend> = self
             .db
@@ -58,6 +59,7 @@ impl<'a> FriendsRepository<'a> {
     ///
     /// # Errors
     /// Returns error if Firestore write fails
+    #[allow(dead_code)]
     pub async fn upsert(&self, friend: &Friend) -> Result<()> {
         self.db
             .fluent()
@@ -78,6 +80,7 @@ impl<'a> FriendsRepository<'a> {
     ///
     /// # Errors
     /// Returns error if Firestore delete fails
+    #[allow(dead_code)]
     pub async fn delete(&self, id: &str) -> Result<()> {
         self.db
             .fluent()

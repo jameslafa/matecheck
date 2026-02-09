@@ -53,6 +53,7 @@ impl<'a> SnoozesRepository<'a> {
     ///
     /// # Errors
     /// Returns error if Firestore write fails
+    #[allow(dead_code)]
     pub async fn snooze_friend(&self, friend_id: &str, days: u32) -> Result<()> {
         let until = Utc::now() + Duration::days(days as i64);
         let snooze = Snooze {
@@ -81,6 +82,7 @@ impl<'a> SnoozesRepository<'a> {
     ///
     /// # Errors
     /// Returns error if Firestore delete fails
+    #[allow(dead_code)]
     pub async fn unsnooze_friend(&self, friend_id: &str) -> Result<()> {
         self.db
             .fluent()
