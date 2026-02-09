@@ -1,10 +1,12 @@
 use calendar::client::{CalendarClient, GoogleCalendarClient};
 use chrono::{Duration, Utc};
 use clap::Parser;
+use std::collections::HashSet;
 
 // Declare modules
 mod calendar;
 mod config;
+mod firestore;
 mod matcher;
 mod reminder;
 mod telegram;
@@ -202,6 +204,41 @@ async fn main() {
         }
     };
 
+    // Initialize Firestore client (fail-open on error)
+    let firestore = match firestore::FirestoreClient::new().await {
+        Ok(client) => {
+            if args.debug {
+                println!("✓ Firestore connected");
+            }
+            Some(client)
+        }
+        Err(e) => {
+            eprintln!("⚠️  Firestore unavailable: {}. Snooze feature disabled.", e);
+            None
+        }
+    };
+
+    // Get active snoozes (empty set if Firestore unavailable)
+    let snoozed_friends = match &firestore {
+        Some(client) => client
+            .snoozes()
+            .get_active_snoozes()
+            .await
+            .unwrap_or_else(|e| {
+                eprintln!("⚠️  Could not load snoozes: {}. Ignoring snoozes.", e);
+                HashSet::new()
+            }),
+        None => HashSet::new(),
+    };
+
+    if !snoozed_friends.is_empty() && args.debug {
+        println!(
+            "📵 {} friend(s) currently snoozed: {:?}",
+            snoozed_friends.len(),
+            snoozed_friends
+        );
+    }
+
     // Connect to Google Calendar
     if args.debug {
         println!("\n🔄 Connecting to Google Calendar...");
@@ -271,7 +308,8 @@ async fn main() {
                         println!("\n🔔 Checking who needs reminders...");
                     }
 
-                    let reminders = reminder::find_friends_needing_reminders(&events, &config);
+                    let reminders =
+                        reminder::find_friends_needing_reminders(&events, &config, &snoozed_friends);
 
                     if reminders.is_empty() {
                         println!("✅ Everyone is up to date! No reminders needed.");
@@ -319,10 +357,13 @@ async fn main() {
                             }
                         };
 
-                        let message = telegram::format_reminder_message(&reminders);
+                        let (message, buttons) = telegram::format_reminder_with_buttons(&reminders);
                         let telegram_client = telegram::TelegramClient::new(bot_token);
 
-                        match telegram_client.send_message(&chat_id, &message, true).await {
+                        match telegram_client
+                            .send_message_with_buttons(&chat_id, &message, true, Some(buttons))
+                            .await
+                        {
                             Ok(()) => {
                                 println!("✅ Sent reminder for {} friend(s) to Telegram", reminders.len());
                             }

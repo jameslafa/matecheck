@@ -1,6 +1,8 @@
 use anyhow::Result;
 use serde::Serialize;
 
+use super::formatter::InlineKeyboardMarkup;
+
 /// Telegram Bot API client
 ///
 /// Responsible for sending messages to users via Telegram.
@@ -26,6 +28,9 @@ struct SendMessageRequest {
     /// Disable link previews in the message
     #[serde(skip_serializing_if = "Option::is_none")]
     disable_web_page_preview: Option<bool>,
+    /// Inline keyboard attached to the message
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reply_markup: Option<InlineKeyboardMarkup>,
 }
 
 impl TelegramClient {
@@ -57,10 +62,32 @@ impl TelegramClient {
     /// * `Ok(())` if the message was sent successfully
     /// * `Err` if the API call failed
     pub async fn send_message(
-      &self,
+        &self,
         username: &str,
         message: &str,
         use_markdown: bool,
+    ) -> Result<()> {
+        self.send_message_with_buttons(username, message, use_markdown, None)
+            .await
+    }
+
+    /// Sends a message with optional inline keyboard buttons
+    ///
+    /// # Arguments
+    /// * `username` - The recipient's Telegram username (without @) or numeric chat ID
+    /// * `message` - The message text to send
+    /// * `use_markdown` - Whether to parse the message as Markdown
+    /// * `buttons` - Optional inline keyboard markup
+    ///
+    /// # Returns
+    /// * `Ok(())` if the message was sent successfully
+    /// * `Err` if the API call failed
+    pub async fn send_message_with_buttons(
+        &self,
+        username: &str,
+        message: &str,
+        use_markdown: bool,
+        buttons: Option<InlineKeyboardMarkup>,
     ) -> Result<()> {
         let url = format!(
             "https://api.telegram.org/bot{}/sendMessage",
@@ -83,6 +110,7 @@ impl TelegramClient {
                 None
             },
             disable_web_page_preview: Some(true),
+            reply_markup: buttons,
         };
 
         let response = self

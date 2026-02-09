@@ -1,4 +1,22 @@
 use crate::reminder::ReminderInfo;
+use serde::Serialize;
+
+/// Inline keyboard button for Telegram
+#[derive(Serialize, Clone, Debug)]
+pub struct InlineKeyboardButton {
+    /// Display text on the button
+    pub text: String,
+    /// Callback data sent when button is pressed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub callback_data: Option<String>,
+}
+
+/// Inline keyboard markup for Telegram messages
+#[derive(Serialize, Clone, Debug)]
+pub struct InlineKeyboardMarkup {
+    /// Grid of buttons (each Vec is a row)
+    pub inline_keyboard: Vec<Vec<InlineKeyboardButton>>,
+}
 
 /// Formats a reminder message for Telegram
 ///
@@ -48,6 +66,57 @@ pub fn format_reminder_message(reminders: &[ReminderInfo]) -> String {
     }
 
     message
+}
+
+/// Creates inline keyboard buttons for snoozing a friend
+///
+/// Returns a row of buttons: [Name: 3d] [Name: 1w] [Name: 2w]
+/// Each button includes the friend's name to make it clear which friend to snooze
+///
+/// # Arguments
+/// * `friend_name` - The friend's display name
+/// * `friend_id` - The unique ID of the friend
+///
+/// # Returns
+/// A row of inline keyboard buttons with callback data
+pub fn create_snooze_buttons(friend_name: &str, friend_id: &str) -> Vec<InlineKeyboardButton> {
+    vec![
+        InlineKeyboardButton {
+            text: format!("{}: 3d", friend_name),
+            callback_data: Some(format!("snooze_{}_{}", friend_id, 3)),
+        },
+        InlineKeyboardButton {
+            text: format!("{}: 1w", friend_name),
+            callback_data: Some(format!("snooze_{}_{}", friend_id, 7)),
+        },
+        InlineKeyboardButton {
+            text: format!("{}: 2w", friend_name),
+            callback_data: Some(format!("snooze_{}_{}", friend_id, 14)),
+        },
+    ]
+}
+
+/// Formats a reminder message with inline snooze buttons
+///
+/// # Arguments
+/// * `reminders` - List of friends needing reminders
+///
+/// # Returns
+/// A tuple of (formatted message text, inline keyboard markup)
+pub fn format_reminder_with_buttons(reminders: &[ReminderInfo]) -> (String, InlineKeyboardMarkup) {
+    let text = format_reminder_message(reminders);
+
+    // Create button grid: one row per friend with name label
+    let button_rows: Vec<Vec<InlineKeyboardButton>> = reminders
+        .iter()
+        .map(|r| create_snooze_buttons(&r.friend.name, &r.friend.id))
+        .collect();
+
+    let markup = InlineKeyboardMarkup {
+        inline_keyboard: button_rows,
+    };
+
+    (text, markup)
 }
 
 #[cfg(test)]

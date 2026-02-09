@@ -381,9 +381,9 @@ friends:
 
 ## Current Status
 
-**✅ Production Ready - Fully Automated**
+**✅ Production Ready - Fully Automated with Firebase State**
 
-All core phases (1-8) complete! MateCheck is deployed and running automatically via GitHub Actions.
+All core phases (1-8) and Phase 9a complete! MateCheck is deployed and running automatically via GitHub Actions with Firebase-powered snooze functionality.
 
 ### Completed Features
 
@@ -397,21 +397,25 @@ All core phases (1-8) complete! MateCheck is deployed and running automatically 
 - ✅ Telegram notifications with clickable links
 - ✅ WhatsApp link support
 - ✅ GitHub Actions automation (weekdays 8am, weekends 9:30am Berlin time)
+- ✅ **Phase 9a: Snooze functionality** (Firebase + Cloud Functions + Telegram inline buttons)
+  - Firestore for state persistence
+  - Inline snooze buttons in Telegram (3d/1w/2w)
+  - Firebase Cloud Function webhook for button handling
+  - Fail-open design (degrades gracefully if Firebase unavailable)
 - ✅ Production-ready README
 
-### Next Up: Phase 9 - Firebase Integration
+### Next Up: Phase 9b & 9c - Firebase Config & Web UI (Optional)
 
-- 🎯 **Phase 9a**: Snooze functionality with Firebase state storage
-- 📋 **Phase 9b**: Move friends config to Firebase (edit via console)
+- 📋 **Phase 9b**: Move friends config to Firebase (edit via console instead of YAML)
 - 🌐 **Phase 9c**: Optional web UI for easy editing
 
 ### Session Info
 
-- **Last Updated**: 2026-02-08
+- **Last Updated**: 2026-02-09
 - **Total Commits**: 11+
-- **Test Suite**: 75 passing tests (including 27 DND tests)
-- **Lines of Code**: ~2200 (src/ + tests)
-- **Learning Progress**: Completed Rust fundamentals, async/await, OAuth, CI/CD, pattern matching
+- **Test Suite**: 79 passing tests (Rust) + TypeScript webhook
+- **Lines of Code**: ~2500 (src/ + functions/)
+- **Learning Progress**: Completed Rust fundamentals, async/await, OAuth, CI/CD, Firebase, Cloud Functions, TypeScript
 
 ## Notes & Decisions
 

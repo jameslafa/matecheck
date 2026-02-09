@@ -11,6 +11,20 @@ token.json
 # Telegram bot token
 .env
 
+# Firebase service account credentials
+service-account.json
+.firebase/
+.firebaserc
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Firebase Functions
+functions/node_modules/
+functions/lib/
+functions/.env
+functions/*.log
+
 # IDE and editor settings
 .claude/
 

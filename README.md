@@ -2,7 +2,7 @@
 
 A Rust application that helps you stay in touch with friends by tracking calendar meetings and sending automated reminders via Telegram and WhatsApp.
 
-**Status:** ✅ Production Ready - Fully automated with GitHub Actions
+**Status:** ✅ Production Ready - Fully automated with GitHub Actions + Firebase state
 
 ## What It Does
 
@@ -25,6 +25,10 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
   - 45 days → remind at day 38 (7 days early)
 - **Future Meeting Awareness** - Skips reminders if meeting already scheduled
 - **Friend Aliases** - Match calendar events with nicknames (e.g., "Lou" matches "Louise")
+- **Snooze Functionality** ⭐ NEW - Temporarily pause reminders for specific friends
+  - Click inline buttons in Telegram: 3 days, 1 week, or 2 weeks
+  - Powered by Firebase Firestore + Cloud Functions
+  - Fail-open design (works even if Firebase is unavailable)
 - **Do Not Disturb Mode** - Automatically pauses ALL reminders during specific periods
   - Create all-day calendar events with 🔕 emoji or [DND] text
   - Examples: "🔕 Vacation in Paris", "[DND] Focus Week"
@@ -44,12 +48,14 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
 
 ## Tech Stack
 
-- **Language:** Rust 🦀 (2021 edition)
+- **Language:** Rust 🦀 (2021 edition) + TypeScript (Cloud Functions)
 - **APIs:** Google Calendar API v3, Telegram Bot API
-- **Key Crates:** tokio, serde, chrono, clap, reqwest
-- **Auth:** OAuth 2.0 for Google Calendar
+- **Database:** Firebase Firestore (state persistence)
+- **Backend:** Firebase Cloud Functions (webhook for button callbacks)
+- **Key Crates:** tokio, serde, chrono, clap, reqwest, firestore
+- **Auth:** OAuth 2.0 for Google Calendar, Firebase Service Account
 - **CI/CD:** GitHub Actions
-- **Tests:** 75 passing tests
+- **Tests:** 79 passing tests (Rust)
 
 ## Project Structure
 
@@ -62,17 +68,27 @@ matecheck/
 │   │   ├── client.rs        # OAuth & API client
 │   │   ├── types.rs         # Event types
 │   │   └── dnd.rs           # Do Not Disturb detection
+│   ├── firestore/           # Firebase Firestore integration
+│   │   ├── client.rs        # Firestore connection
+│   │   ├── snoozes.rs       # Snooze repository (CRUD)
+│   │   └── types.rs         # Firestore data types
 │   ├── matcher.rs           # Event-to-friend matching logic
 │   ├── reminder/
 │   │   └── engine.rs        # Reminder calculation logic
 │   └── telegram/            # Telegram integration
 │       ├── client.rs        # Bot API client
-│       └── formatter.rs     # Message formatting
+│       └── formatter.rs     # Message formatting + inline buttons
+├── functions/               # Firebase Cloud Functions (TypeScript)
+│   ├── src/
+│   │   └── index.ts         # Webhook handler for button callbacks
+│   ├── package.json
+│   └── tsconfig.json
 ├── .github/
 │   └── workflows/
 │       └── daily-check.yml  # Automated deployment
 ├── friends.yaml             # Your friends config (gitignored)
 ├── friends.example.yaml     # Example configuration
+├── firebase.json            # Firebase configuration
 └── Cargo.toml              # Rust dependencies
 ```
 
@@ -81,8 +97,10 @@ matecheck/
 ### Prerequisites
 
 - Rust (latest stable)
+- Node.js 22+ (for Firebase Functions)
 - Google Calendar API credentials
 - Telegram bot token
+- Firebase project (free tier)
 - GitHub account (for automation)
 
 ### Local Development
@@ -125,19 +143,28 @@ matecheck/
    git push origin master
    ```
 
-2. **Add repository secrets** (Settings → Secrets → Actions):
+2. **Set up Firebase (optional, for snooze feature):**
+   - Create Firebase project
+   - Enable Firestore Database
+   - Enable billing (required for Secret Manager, but stays on free tier)
+   - Create service account, download as `service-account.json`
+   - Deploy Cloud Function: `cd functions && npm install && firebase deploy --only functions`
+   - Set Telegram webhook to Cloud Function URL
+
+3. **Add repository secrets** (Settings → Secrets → Actions):
    - `GOOGLE_CREDENTIALS` - Content of `credentials.json`
    - `GOOGLE_OAUTH_TOKEN` - Content of `token.json` (refresh tokens last 6+ months)
    - `TELEGRAM_BOT_TOKEN` - Your bot token
    - `TELEGRAM_CHAT_ID` - Your chat ID
    - `FRIENDS_CONFIG` - Content of `friends.yaml`
+   - `FIREBASE_SERVICE_ACCOUNT` - Content of `service-account.json` (if using snooze)
 
-3. **Test workflow:**
+4. **Test workflow:**
    - Go to Actions tab
    - Select "Daily Friend Reminder Check"
    - Click "Run workflow"
 
-4. **Done!** Reminders run automatically on schedule.
+5. **Done!** Reminders run automatically on schedule.
 
 ## Configuration
 
@@ -175,16 +202,19 @@ friends:
 
 ## How It Works
 
-1. **Fetches Calendar Events** - Gets events from last 90 days + future events
-2. **Checks Do Not Disturb** - Exits early if DND event detected (skips all reminders)
-3. **Matches Friends** - Identifies which events involved which friends
-4. **Calculates Last Meeting** - Finds most recent past meeting per friend
-5. **Checks Future Meetings** - Looks for upcoming scheduled meetings
-6. **Applies Smart Logic:**
+1. **Loads Active Snoozes** - Queries Firestore for snoozed friends (fail-open if unavailable)
+2. **Fetches Calendar Events** - Gets events from last 90 days + future events
+3. **Checks Do Not Disturb** - Exits early if DND event detected (skips all reminders)
+4. **Matches Friends** - Identifies which events involved which friends
+5. **Calculates Last Meeting** - Finds most recent past meeting per friend
+6. **Checks Future Meetings** - Looks for upcoming scheduled meetings
+7. **Applies Smart Logic:**
+   - Filters out snoozed friends
    - Reminds at 85% of target frequency (15% buffer)
    - Skips reminder if meeting already scheduled
    - Ignores recurring events (birthdays)
-7. **Sends Telegram Message** - Formatted list with clickable links
+8. **Sends Telegram Message** - Formatted list with inline snooze buttons
+9. **Button Callback** - Cloud Function handles button clicks, updates Firestore
 
 ## Development
 
@@ -210,9 +240,12 @@ This project was built as a learning exercise to understand Rust coming from a G
 - Rust ownership, borrowing, and lifetimes
 - Async/await with tokio
 - OAuth 2.0 authentication
-- API integration (Google Calendar, Telegram)
+- API integration (Google Calendar, Telegram, Firestore)
+- Firebase Cloud Functions (TypeScript)
+- State persistence with Firestore
 - GitHub Actions CI/CD
 - Error handling with Result types
 - Testing and test-driven development
+- Graceful degradation (fail-open patterns)
 
 Built with assistance from Claude Code.

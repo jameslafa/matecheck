@@ -46,3 +46,6 @@ async-trait = "0.1"
 
 # Load environment variables from .env file
 dotenvy = "0.15"
+
+# Firestore for state persistence
+firestore = "0.42"

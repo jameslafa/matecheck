@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::i64;
 
 use crate::calendar::types::Event;
@@ -26,6 +27,7 @@ pub struct ReminderInfo {
 /// - Buffer is automatically calculated as 15% of frequency (proportional early warning)
 /// - If never met (no events), always send reminder
 /// - **SKIP** reminder if meeting already scheduled within frequency window
+/// - **SKIP** reminder if friend is currently snoozed
 ///
 /// **Automatic buffer (15% of frequency):**
 /// - frequency=10 → buffer=2 → remind at day 8
@@ -35,13 +37,26 @@ pub struct ReminderInfo {
 /// **Future meeting check:**
 /// - If friend would get reminder BUT has meeting scheduled within frequency_days, skip
 /// - Example: frequency=10, last_met=9 days ago, future_meeting=in 2 days → no reminder
-pub fn find_friends_needing_reminders(events: &[Event], config: &Config) -> Vec<ReminderInfo> {
+///
+/// **Snooze check:**
+/// - If friend is in snoozed_friends set, skip reminder entirely
+/// - Snooze takes precedence over all other reminder logic
+pub fn find_friends_needing_reminders(
+    events: &[Event],
+    config: &Config,
+    snoozed_friends: &HashSet<String>,
+) -> Vec<ReminderInfo> {
     let friends = &config.friends;
     let last_meetings_by_friend = matcher::find_last_meetings(events, friends);
     let next_meetings_by_friend = matcher::find_next_meetings(events, friends);
     let mut reminders = Vec::new();
 
     for friend in friends {
+        // Skip snoozed friends
+        if snoozed_friends.contains(&friend.id) {
+            continue;
+        }
+
         let last_meeting = last_meetings_by_friend.get(&friend.id);
         let days_since = matcher::days_since_last_meeting(last_meeting.as_ref().unwrap());
 
@@ -142,7 +157,8 @@ mod tests {
         let event = mock_event("Coffee", vec!["alice@example.com".to_string()], 15);
         let events = vec![event];
 
-        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
+        let snoozed = HashSet::new();
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends), &snoozed);
 
         assert_eq!(reminders.len(), 1);
         assert_eq!(reminders[0].friend.id, "alice");
@@ -159,7 +175,8 @@ mod tests {
         let event = mock_event("Coffee", vec!["alice@example.com".to_string()], 5);
         let events = vec![event];
 
-        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
+        let snoozed = HashSet::new();
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends), &snoozed);
 
         assert_eq!(reminders.len(), 0);
     }
@@ -171,7 +188,8 @@ mod tests {
 
         let events = vec![]; // No events
 
-        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
+        let snoozed = HashSet::new();
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends), &snoozed);
 
         assert_eq!(reminders.len(), 1);
         assert_eq!(reminders[0].friend.id, "bob");
@@ -193,7 +211,8 @@ mod tests {
                                                                                     // Charlie never met
         ];
 
-        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
+        let snoozed = HashSet::new();
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends), &snoozed);
 
         assert_eq!(reminders.len(), 2); // Alice and Charlie
         let ids: Vec<&str> = reminders.iter().map(|r| r.friend.id.as_str()).collect();
@@ -222,7 +241,8 @@ mod tests {
 
         let events = vec![past_event, future_event];
 
-        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
+        let snoozed = HashSet::new();
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends), &snoozed);
 
         // Should NOT remind because meeting is already scheduled
         assert_eq!(reminders.len(), 0);
@@ -248,7 +268,8 @@ mod tests {
 
         let events = vec![past_event, future_event];
 
-        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
+        let snoozed = HashSet::new();
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends), &snoozed);
 
         // SHOULD remind because future meeting is too far away
         assert_eq!(reminders.len(), 1);
@@ -272,7 +293,8 @@ mod tests {
 
         let events = vec![future_event];
 
-        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
+        let snoozed = HashSet::new();
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends), &snoozed);
 
         // Should NOT remind because meeting is scheduled
         assert_eq!(reminders.len(), 0);
@@ -299,7 +321,8 @@ mod tests {
         let event = mock_event("Coffee", vec!["alice@example.com".to_string()], 8);
         let events = vec![event];
 
-        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
+        let snoozed = HashSet::new();
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends), &snoozed);
 
         // SHOULD remind because days_since (8) >= threshold (10-2=8)
         assert_eq!(reminders.len(), 1);
@@ -316,9 +339,56 @@ mod tests {
         let event = mock_event("Coffee", vec!["alice@example.com".to_string()], 7);
         let events = vec![event];
 
-        let reminders = find_friends_needing_reminders(&events, &mock_config(friends));
+        let snoozed = HashSet::new();
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends), &snoozed);
 
         // Should NOT remind (7 < 8)
+        assert_eq!(reminders.len(), 0);
+    }
+
+    #[test]
+    fn test_snoozed_friend_skipped() {
+        let alice = mock_friend("alice", "Alice", 10);
+        let bob = mock_friend("bob", "Bob", 10);
+        let friends = vec![alice, bob];
+
+        // Both are overdue
+        let events = vec![
+            mock_event("Alice meeting", vec!["alice@example.com".to_string()], 15),
+            mock_event("Bob meeting", vec!["bob@example.com".to_string()], 15),
+        ];
+
+        // Alice is snoozed
+        let mut snoozed = HashSet::new();
+        snoozed.insert("alice".to_string());
+
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends), &snoozed);
+
+        // Only Bob should be reminded
+        assert_eq!(reminders.len(), 1);
+        assert_eq!(reminders[0].friend.id, "bob");
+    }
+
+    #[test]
+    fn test_all_snoozed_no_reminders() {
+        let alice = mock_friend("alice", "Alice", 10);
+        let bob = mock_friend("bob", "Bob", 10);
+        let friends = vec![alice, bob];
+
+        // Both are overdue
+        let events = vec![
+            mock_event("Alice meeting", vec!["alice@example.com".to_string()], 15),
+            mock_event("Bob meeting", vec!["bob@example.com".to_string()], 15),
+        ];
+
+        // Both are snoozed
+        let mut snoozed = HashSet::new();
+        snoozed.insert("alice".to_string());
+        snoozed.insert("bob".to_string());
+
+        let reminders = find_friends_needing_reminders(&events, &mock_config(friends), &snoozed);
+
+        // No reminders
         assert_eq!(reminders.len(), 0);
     }
 }
