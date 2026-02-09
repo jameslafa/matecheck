@@ -86,22 +86,42 @@ A Rust application that connects to Google Calendar, tracks meetings with friend
 matecheck/
 ├── src/
 │   ├── main.rs                 # CLI entry point, orchestration
-│   ├── config.rs               # Load friends config
+│   ├── config.rs               # Load friends config (Firestore + YAML fallback)
 │   ├── calendar/
 │   │   ├── mod.rs              # Module declaration
 │   │   ├── client.rs           # Google Calendar API client
-│   │   └── types.rs            # Calendar event types
+│   │   ├── types.rs            # Calendar event types
+│   │   └── dnd.rs              # Do Not Disturb detection
+│   ├── firestore/              # Firebase Firestore integration
+│   │   ├── mod.rs
+│   │   ├── client.rs           # Firestore connection
+│   │   ├── snoozes.rs          # Snooze repository (CRUD)
+│   │   └── types.rs            # Firestore data types
 │   ├── matcher.rs              # Logic to match events to friends
 │   ├── reminder/
 │   │   ├── mod.rs
 │   │   └── engine.rs           # Determine who needs reminders
 │   └── telegram/
 │       ├── mod.rs
-│       └── client.rs           # Telegram bot client
-├── Cargo.toml                  # Dependencies
+│       ├── client.rs           # Telegram bot client
+│       └── formatter.rs        # Message formatting + inline buttons
+├── docs/                       # Web UI (GitHub Pages)
+│   ├── index.html              # Friends management interface
+│   ├── README.md               # Web UI setup guide
+│   └── SETUP.md                # Deployment instructions
+├── functions/                  # Firebase Cloud Functions (TypeScript)
+│   ├── src/
+│   │   └── index.ts            # Webhook handler for button callbacks
+│   ├── package.json
+│   └── tsconfig.json
+├── .github/
+│   └── workflows/
+│       └── daily-check.yml     # Automated deployment
+├── Cargo.toml                  # Rust dependencies
 ├── .gitignore                  # Exclude sensitive files
 ├── friends.example.yaml        # Example config (checked in)
-├── friends.yaml                # Actual config (gitignored)
+├── friends.yaml                # Fallback config (gitignored, optional)
+├── firebase.json               # Firebase configuration
 └── PLAN.md                     # This file
 ```
 
@@ -244,146 +264,54 @@ friends:
 
 **15. Smart Reminder Logic Enhancements**
 
-**a) Future Meeting Check**
-
-- Check if meeting already scheduled within frequency window
-- **Logic**: If friend has event scheduled in next N days (where N = frequency_days), skip reminder
-- **Example**:
-  - Matilda: frequency = 10 days
-  - Last meeting: 9 days ago (almost overdue)
-  - Future meeting: scheduled in 2 days
-  - Result: No reminder (total gap = 11 days, within acceptable range)
-- **Note**: This means max gap could be 2N days, but that's intentional and user-controlled
-- **Implementation**: Fetch future events separately, check in reminder engine
-
-**b) Early Reminder Threshold**
-
-- Send reminders BEFORE hitting the target, not after
-- **Goal**: Give time to schedule meeting before going overdue
-- **Logic**: Automatic 15% buffer calculation
-- **Implementation**: `buffer = round(frequency * 0.15).max(1)`
-- **Results**:
-  - 10 days → 2 day buffer (remind at day 8)
-  - 30 days → 5 day buffer (remind at day 25)
-  - 45 days → 7 day buffer (remind at day 38)
-- **Configuration**: Zero-config! Automatically calculated, no setup needed
-- **Learning**: Sub-linear scaling, automatic calculation, zero-config UX design
-
-**c) Filter Recurring Events**
-
-- Skip recurring events (birthdays, anniversaries) when matching
-- **Why**: Recurring events don't represent actual plans to meet
-- **Implementation**: Filter in `calendar/client.rs` during event fetching
-- **Logic**: Skip events where `recurring_event_id.is_some()`
-- **Result**: Recurring events simply don't exist in our internal Event list
-- **Code**: Added `.filter(|e| e.recurring_event_id.is_none())` before conversion
-- **Learning**: Iterator chaining, Google Calendar API recurring event detection
-
-**d) Friend Name Aliases**
-
-- Support multiple names/aliases for the same friend
-- **Why**: Friends may be called by different names (Lou/Louise, Mike/Michael, nicknames)
-- **Example**:
-  ```yaml
-  friends:
-    - id: "louise"
-      name: "Louise"
-      aliases: ["Lou", "Loulou"] # Don't repeat main name
-      email: "louise@example.com"
-      frequency_days: 14
-  ```
-- **Implementation**:
-  - Added optional `aliases: Vec<String>` field to Friend struct with `#[serde(default)]`
-  - Updated `match_by_title()` in `matcher.rs` to check name OR any alias (case-insensitive)
-  - Added tests for alias matching (all 48 tests passing)
-- **Use Case**: Calendar event "Coffee with Lou" now matches friend "Louise"
-- **Learning**: Default field values with serde, iterator methods
-
-**e) Do Not Disturb Mode**
-
-- Automatically pause ALL friend reminders during specific periods
-- **Why**: Need breaks during vacations, deep work, or personal time without manual intervention
-- **How It Works**:
-  - Create all-day calendar events with 🔕 emoji OR [DND] text (case-insensitive)
-  - Examples: "🔕 Vacation in Paris", "[DND] Focus Week", "[dnd] personal time"
-  - Only all-day events count (timed events like "🔕 Meeting" are ignored)
-  - Works with single-day and multi-day events
-- **Implementation**:
-  - Added `is_all_day: bool` field to Event struct for explicit event type tracking
-  - Updated `convert_event()` in `calendar/client.rs` to detect all-day vs timed events
-  - Created new `calendar/dnd.rs` module with DND detection logic
-  - Added DND check in `main.rs` after event fetching, before reminder calculation
-  - Early exit with appropriate debug/user messages when DND is active
-  - Comprehensive test suite: 27 tests covering all DND scenarios and edge cases
-  - Updated all existing tests to include new `is_all_day` field (75 tests total)
-- **Result**: Calendar-based, stateless DND that requires no configuration or database
-- **Learning**: Pattern matching with filters, Option handling, early return patterns
-
-**16. Other Future Ideas**
-
-- Firebase integration for state persistence
-- Multiple calendar support
-- Configurable reminder messages
-- Web dashboard
+- Future meeting check: Skip reminders if meeting already scheduled
+- Early reminder threshold: 15% buffer (e.g., 30 days → remind at day 25)
+- Filter recurring events: Skip birthdays/anniversaries
+- Friend name aliases: Support multiple names per friend
+- Do Not Disturb mode: Calendar-based automatic pause
+- Learning: Pattern matching, iterator chaining, zero-config design
 
 ### Phase 8: Production Deployment
 
-**17. GitHub Actions Automated Deployment**
+**16. GitHub Actions Automated Deployment**
 
-- Created `.github/workflows/daily-check.yml` with timezone-aware scheduling
-- Set up GitHub secrets for credentials (Google, Telegram, friends config)
+- Create `.github/workflows/daily-check.yml` with timezone-aware scheduling
+- Set up GitHub secrets for credentials
 - Schedule: Weekdays 8:00 AM, Weekends 9:30 AM Berlin time
-- Tested workflow manually - working perfectly
-- Runs automatically daily
 - Learning: CI/CD, secrets management, cron expressions, GitHub Actions
 
 ### Phase 9: Firebase Integration & Web UI
 
-**Goal**: Add state persistence for snooze functionality and enable online config editing
-
-**18. Phase 9a: Snooze Functionality with Firebase**
+**17. Snooze Functionality with Firebase**
 
 - Set up Firebase project and Firestore database
-- Add Firebase/Firestore Rust crate dependencies
 - Create `snoozes` collection in Firestore
-- Implement snooze logic:
-  - Store: `snoozes/{friend_id} → { snoozed_until: date }`
-  - Query: Get all active snoozes (where snoozed_until > today)
-  - Check: Skip reminder if friend is currently snoozed
-- Add Firebase credentials to GitHub Actions secrets
-- Test snooze functionality locally and in GitHub Actions
-- Learning: Firestore SDK, state management, date comparisons
+- Implement snooze logic with fail-open design
+- Add inline snooze buttons to Telegram messages
+- Create Cloud Function webhook for button callbacks
+- Learning: Firestore SDK, state management, Cloud Functions, TypeScript
 
-**19. Phase 9b: Move Friends Config to Firebase**
+**18. Firestore Configuration with YAML Fallback**
 
-- Migrate friends.yaml structure to Firestore
-- Create `friends` collection: `friends/{friend_id} → { name, email, telegram_username, whatsapp_phone, aliases, frequency_days }`
-- Update config loading to read from Firestore instead of YAML
-- Keep friends.example.yaml for documentation
-- Edit friends via Firebase Console (requires Google account login)
-- Remove FRIENDS_CONFIG from GitHub secrets (read from Firestore instead)
-- Learning: Cloud-based configuration, Firestore queries
+- Create `friends` collection in Firestore
+- Update `config.rs` with `load_from_firestore()` method
+- Implement automatic source selection with fallback
+- Learning: Cloud-based configuration, graceful degradation patterns
 
-**20. Phase 9c: Web UI for Friend Management (Optional)**
+**19. Web UI for Friend Management**
 
-- Build single-page web app for managing friends
-- Features:
-  - List all friends with their configs
-  - Add/edit/delete friends via form
-  - View last meeting date and snooze status
-  - Snooze/unsnooze friends
-- Security:
-  - Google Sign-In authentication
-  - Firestore security rules (only your email can access)
-  - No public access to data
-- Deploy to GitHub Pages (free hosting)
-- Learning: Firebase JS SDK, web authentication, static site hosting
+- Build single-page web app in `docs/index.html`
+- Implement full CRUD operations (add, edit, delete friends)
+- Add mobile-responsive design
+- Set up Google Sign-In authentication via Firebase Auth
+- Deploy to GitHub Pages
+- Learning: Firebase JS SDK, web authentication, responsive CSS, GitHub Pages
 
 ## Current Status
 
-**✅ Production Ready - Fully Automated with Firebase State**
+**✅ Production Ready - Fully Automated with Web UI & Firebase**
 
-All core phases (1-8) and Phase 9a complete! MateCheck is deployed and running automatically via GitHub Actions with Firebase-powered snooze functionality.
+All phases (1-9) complete! MateCheck is deployed with automated reminders, Firestore-backed state management, and a mobile-responsive web UI for friends configuration.
 
 ### Completed Features
 
@@ -397,28 +325,7 @@ All core phases (1-8) and Phase 9a complete! MateCheck is deployed and running a
 - ✅ Telegram notifications with clickable links
 - ✅ WhatsApp link support
 - ✅ GitHub Actions automation (weekdays 8am, weekends 9:30am Berlin time)
-- ✅ **Phase 9a: Snooze functionality** (Firebase + Cloud Functions + Telegram inline buttons)
-  - Firestore for state persistence
-  - Inline snooze buttons in Telegram (3d/1w/2w)
-  - Firebase Cloud Function webhook for button handling
-  - Fail-open design (degrades gracefully if Firebase unavailable)
-- ✅ Production-ready README
-
-### Next Up: Phase 9b & 9c - Firebase Config & Web UI (Optional)
-
-- 📋 **Phase 9b**: Move friends config to Firebase (edit via console instead of YAML)
-- 🌐 **Phase 9c**: Optional web UI for easy editing
-
-### Session Info
-
-- **Last Updated**: 2026-02-09
-- **Total Commits**: 11+
-- **Test Suite**: 79 passing tests (Rust) + TypeScript webhook
-- **Lines of Code**: ~2500 (src/ + functions/)
-- **Learning Progress**: Completed Rust fundamentals, async/await, OAuth, CI/CD, Firebase, Cloud Functions, TypeScript
-
-## Notes & Decisions
-
-- **Public Repo**: friends.yaml and sensitive data must be gitignored
-- **Stateless v1**: No persistence initially, recalculate from calendar each run
-- **Day Granularity**: No need for hour/minute precision
+- ✅ Snooze functionality (Firebase + Cloud Functions + Telegram inline buttons)
+- ✅ Firestore configuration with automatic YAML fallback
+- ✅ Web UI for friends management
+- ✅ Production-ready README with full documentation

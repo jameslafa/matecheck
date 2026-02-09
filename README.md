@@ -11,6 +11,7 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
 ## Features ✅
 
 ### Core Functionality
+
 - **Google Calendar Integration** - Fetches events with OAuth 2.0 authentication
 - **Smart Friend Matching** - Matches events to friends by:
   - Email addresses (primary method)
@@ -18,7 +19,18 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
 - **All-Day Event Support** - Tracks both timed and all-day calendar events
 - **Recurring Event Filtering** - Automatically filters out birthdays and anniversaries
 
+### Configuration Management
+
+- **Firestore Configuration** - Store friends config in Firebase Firestore
+- **Web UI** - Mobile-responsive web interface for managing friends
+  - Add, edit, and delete friends via intuitive UI
+  - No YAML editing required
+  - Deployed on GitHub Pages
+  - Google Sign-In authentication
+- **Automatic YAML Fallback** - Seamlessly falls back to local friends.yaml if Firestore unavailable
+
 ### Smart Reminders
+
 - **Automatic Early Warnings** - Reminds you 15% before your target frequency
   - 10 days → remind at day 8 (2 days early)
   - 30 days → remind at day 25 (5 days early)
@@ -36,11 +48,13 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
   - Only all-day events count (timed events ignored)
 
 ### Notifications
+
 - **Telegram Integration** - Sends formatted reminders with clickable links
 - **WhatsApp Support** - Creates WhatsApp deep links for friends without Telegram
 - **Smart Fallback** - Telegram username → WhatsApp → plain name
 
 ### Automation
+
 - **GitHub Actions** - Runs automatically on schedule
   - Weekdays: 8:00 AM Berlin time
   - Weekends: 9:30 AM Berlin time
@@ -50,11 +64,13 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
 
 - **Language:** Rust 🦀 (2021 edition) + TypeScript (Cloud Functions)
 - **APIs:** Google Calendar API v3, Telegram Bot API
-- **Database:** Firebase Firestore (state persistence)
+- **Database:** Firebase Firestore (state persistence + config storage)
 - **Backend:** Firebase Cloud Functions (webhook for button callbacks)
+- **Frontend:** Vanilla JavaScript + Firebase SDK (web UI)
 - **Key Crates:** tokio, serde, chrono, clap, reqwest, firestore
-- **Auth:** OAuth 2.0 for Google Calendar, Firebase Service Account
+- **Auth:** OAuth 2.0 for Google Calendar, Firebase Service Account, Google Sign-In (web UI)
 - **CI/CD:** GitHub Actions
+- **Hosting:** GitHub Pages (web UI)
 - **Tests:** 79 passing tests (Rust)
 
 ## Project Structure
@@ -63,7 +79,7 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
 matecheck/
 ├── src/
 │   ├── main.rs              # CLI entry point
-│   ├── config.rs            # Friend configuration loader
+│   ├── config.rs            # Friend configuration loader (Firestore + YAML)
 │   ├── calendar/            # Google Calendar integration
 │   │   ├── client.rs        # OAuth & API client
 │   │   ├── types.rs         # Event types
@@ -78,6 +94,10 @@ matecheck/
 │   └── telegram/            # Telegram integration
 │       ├── client.rs        # Bot API client
 │       └── formatter.rs     # Message formatting + inline buttons
+├── docs/                    # Web UI (GitHub Pages)
+│   ├── index.html           # Friends management interface
+│   ├── README.md            # Web UI setup instructions
+│   └── SETUP.md             # Deployment guide
 ├── functions/               # Firebase Cloud Functions (TypeScript)
 │   ├── src/
 │   │   └── index.ts         # Webhook handler for button callbacks
@@ -86,7 +106,7 @@ matecheck/
 ├── .github/
 │   └── workflows/
 │       └── daily-check.yml  # Automated deployment
-├── friends.yaml             # Your friends config (gitignored)
+├── friends.yaml             # Fallback config (gitignored, optional)
 ├── friends.example.yaml     # Example configuration
 ├── firebase.json            # Firebase configuration
 └── Cargo.toml              # Rust dependencies
@@ -106,6 +126,7 @@ matecheck/
 ### Local Development
 
 1. **Clone and configure:**
+
    ```bash
    git clone <your-repo>
    cd matecheck
@@ -139,6 +160,7 @@ matecheck/
 ### GitHub Actions Deployment
 
 1. **Push code to GitHub:**
+
    ```bash
    git push origin master
    ```
@@ -166,9 +188,48 @@ matecheck/
 
 5. **Done!** Reminders run automatically on schedule.
 
+### Web UI Deployment (Optional but Recommended)
+
+Deploy the friends management interface to GitHub Pages:
+
+1. **Enable GitHub Pages:**
+   - Go to repo Settings → Pages
+   - Source: Deploy from a branch
+   - Branch: `master`, Folder: `/docs`
+   - Save and wait 1-2 minutes
+
+2. **Configure Firebase for web access:**
+   - Follow the detailed setup guide in `docs/SETUP.md`
+   - Enable Google Sign-In authentication
+   - Update Firestore security rules
+   - Add your GitHub Pages domain to authorized domains
+
+3. **Access your web UI:**
+   - Visit `https://YOUR_USERNAME.github.io/matecheck/`
+   - Sign in with Google
+   - Manage friends through the interface
+
+See `docs/README.md` for complete setup instructions.
+
 ## Configuration
 
-### friends.yaml Example
+MateCheck supports two configuration methods:
+
+1. **Firestore (Recommended)** - Store friends in Firebase Firestore, edit via web UI
+2. **YAML (Fallback)** - Local friends.yaml file (automatically used if Firestore unavailable)
+
+### Firestore Configuration (via Web UI)
+
+The easiest way to manage friends is through the web UI:
+
+1. Deploy web UI to GitHub Pages (see docs/SETUP.md)
+2. Visit your GitHub Pages URL
+3. Sign in with Google
+4. Add/edit/delete friends via the interface
+
+Changes take effect immediately - no deployment needed!
+
+### friends.yaml Example (Fallback)
 
 ```yaml
 friends:
@@ -181,13 +242,13 @@ friends:
   - id: "bob"
     name: "Bob Johnson"
     email: "bob@example.com"
-    whatsapp_phone: "+1 234 567 8900"  # For friends without Telegram
-    aliases: ["Bobby"]                  # Match "Bobby" in calendar
+    whatsapp_phone: "+1 234 567 8900" # For friends without Telegram
+    aliases: ["Bobby"] # Match "Bobby" in calendar
     frequency_days: 14
 
   - id: "charlie"
     name: "Charlie"
-    frequency_days: 60                  # No contact info = plain name
+    frequency_days: 60 # No contact info = plain name
 ```
 
 ### Field Reference
@@ -219,6 +280,7 @@ friends:
 ## Development
 
 ### Run Tests
+
 ```bash
 cargo test                    # All tests
 cargo test --lib              # Library tests only
@@ -226,6 +288,7 @@ cargo test test_name          # Specific test
 ```
 
 ### Utilities
+
 ```bash
 cargo run --bin get_chat_id   # Get your Telegram chat ID
 ```
@@ -237,6 +300,7 @@ MIT License - See [LICENSE](LICENSE) file
 ## Learning Project
 
 This project was built as a learning exercise to understand Rust coming from a Go background. It covers:
+
 - Rust ownership, borrowing, and lifetimes
 - Async/await with tokio
 - OAuth 2.0 authentication
@@ -247,5 +311,3 @@ This project was built as a learning exercise to understand Rust coming from a G
 - Error handling with Result types
 - Testing and test-driven development
 - Graceful degradation (fail-open patterns)
-
-Built with assistance from Claude Code.
