@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MateCheck - Dashboard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🤝</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+
+        /* Login Screen */
+        .login-screen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .login-box {
+            background: white;
+            border-radius: 12px;
+            padding: 48px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .login-box h2 {
+            font-size: 32px;
+            margin-bottom: 12px;
+            color: #2d3748;
+        }
+
+        .login-box p {
+            color: #718096;
+            margin-bottom: 32px;
+        }
+
+        /* Main Layout */
+        .app-layout {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 24px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .sidebar-header h1 {
+            font-size: 20px;
+            color: #2d3748;
+            margin-bottom: 4px;
+        }
+
+        .sidebar-header .subtitle {
+            font-size: 12px;
+            color: #718096;
+        }
+
+        .nav-menu {
+            flex: 1;
+            padding: 16px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #4a5568;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .nav-item:hover {
+            background: #f7fafc;
+        }
+
+        .nav-item.active {
+            background: #edf2f7;
+            color: #667eea;
+        }
+
+        .nav-item .icon {
+            font-size: 18px;
+        }
+
+        .user-section {
+            padding: 16px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #f7fafc;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #cbd5e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: #2d3748;
+            font-weight: 600;
+            overflow: hidden;
+        }
+
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .user-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .user-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #2d3748;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .user-email {
+            font-size: 12px;
+            color: #718096;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .content-header {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 24px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .content-header h2 {
+            font-size: 24px;
+            color: #2d3748;
+        }
+
+        .content-body {
+            padding: 32px;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-secondary {
+            background: #718096;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #4a5568;
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #e53e3e;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: #4a5568;
+        }
+
+        .btn-ghost:hover {
+            background: #f7fafc;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* Table */
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #f7fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #4a5568;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 16px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 14px;
+            color: #2d3748;
+        }
+
+        tbody tr:hover {
+            background: #f7fafc;
+        }
+
+        .friend-name {
+            font-weight: 500;
+            color: #2d3748;
+        }
+
+        .friend-id {
+            font-size: 12px;
+            color: #718096;
+            font-family: monospace;
+        }
+
+        .contact-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .contact-item {
+            font-size: 12px;
+            color: #4a5568;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .aliases {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .alias-tag {
+            background: #edf2f7;
+            color: #4a5568;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Home Section */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #718096;
+        }
+
+        .welcome-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 32px;
+        }
+
+        .welcome-card h3 {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .welcome-card p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-header h2 {
+            font-size: 20px;
+            color: #2d3748;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #718096;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+        }
+
+        .close-modal:hover {
+            background: #f7fafc;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            color: #2d3748;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 6px;
+            color: #718096;
+            font-size: 12px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 64px 32px;
+            color: #718096;
+        }
+
+        .empty-state .icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            margin-bottom: 24px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-box">
+            <h2>🤝 MateCheck</h2>
+            <p>Manage your friendships with ease</p>
+            <button onclick="signIn()" class="btn btn-primary">Sign in with Google</button>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app" class="app-layout hidden">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>🤝 MateCheck</h1>
+                <div class="subtitle">Friends Dashboard</div>
+            </div>
+
+            <nav class="nav-menu">
+                <div class="nav-item active" onclick="showSection('home')">
+                    <span class="icon">🏠</span>
+                    <span>Home</span>
+                </div>
+                <div class="nav-item" onclick="showSection('friends')">
+                    <span class="icon">👥</span>
+                    <span>Friends</span>
+                </div>
+                <div class="nav-item" style="opacity: 0.5; cursor: not-allowed;">
+                    <span class="icon">📊</span>
+                    <span>Analytics</span>
+                    <span style="margin-left: auto; font-size: 10px; background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">Soon</span>
+                </div>
+            </nav>
+
+            <div class="user-section">
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">
+                        <img id="userPhoto" style="display: none;" />
+                        <span id="userInitial"></span>
+                    </div>
+                    <div class="user-details">
+                        <div class="user-name" id="userName"></div>
+                        <div class="user-email" id="userEmail"></div>
+                    </div>
+                </div>
+                <button onclick="signOut()" class="btn btn-ghost" style="width: 100%; margin-top: 8px; justify-content: center;">
+                    Sign Out
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div id="error" class="error hidden"></div>
+
+            <!-- Home Section -->
+            <div id="homeSection">
+                <div class="content-header">
+                    <h2>Dashboard</h2>
+                </div>
+                <div class="content-body">
+                    <div class="welcome-card">
+                        <h3>Welcome back! 👋</h3>
+                        <p>Keep track of your friendships and stay connected</p>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalFriends">-</div>
+                            <div class="stat-label">Total Friends</div>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <div style="padding: 20px; border-bottom: 1px solid #e2e8f0;">
+                            <h3 style="color: #2d3748; font-size: 16px;">Quick Actions</h3>
+                        </div>
+                        <div style="padding: 32px; text-align: center;">
+                            <button onclick="showSection('friends')" class="btn btn-primary">
+                                👥 View All Friends
+                            </button>
+                            <button onclick="showSection('friends'); openAddFriendModal();" class="btn btn-secondary" style="margin-left: 12px;">
+                                ➕ Add New Friend
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Friends Section -->
+            <div id="friendsSection" class="hidden">
+                <div class="content-header">
+                    <h2>Friends</h2>
+                    <button onclick="openAddFriendModal()" class="btn btn-primary">
+                        ➕ Add Friend
+                    </button>
+                </div>
+                <div class="content-body">
+                    <div id="friendsTable" class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Contact Info</th>
+                                    <th>Aliases</th>
+                                    <th>Frequency</th>
+                                    <th style="width: 140px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="friendsTableBody">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; padding: 32px; color: #718096;">
+                                        Loading friends...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Friend Modal -->
+    <div id="friendModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Add Friend</h2>
+                <button onclick="closeModal()" class="close-modal">&times;</button>
+            </div>
+            <form id="friendForm" onsubmit="saveFriend(event)">
+                <div class="form-group">
+                    <label>ID *</label>
+                    <input type="text" id="friendId" required pattern="[a-z0-9-]+"
+                           placeholder="e.g., alice, bob-smith">
+                    <small>Lowercase letters, numbers, and hyphens only</small>
+                </div>
+                <div class="form-group">
+                    <label>Name *</label>
+                    <input type="text" id="friendName" required placeholder="e.g., Alice Smith">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="friendEmail" placeholder="alice@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Telegram Username</label>
+                    <input type="text" id="friendTelegram" placeholder="Without @ symbol">
+                </div>
+                <div class="form-group">
+                    <label>WhatsApp Phone</label>
+                    <input type="tel" id="friendWhatsapp" placeholder="+49 157 1234 5678">
+                </div>
+                <div class="form-group">
+                    <label>Aliases (comma-separated)</label>
+                    <input type="text" id="friendAliases" placeholder="e.g., Ali, Ally">
+                    <small>Alternative names for calendar matching</small>
+                </div>
+                <div class="form-group">
+                    <label>Frequency (days) *</label>
+                    <input type="number" id="friendFrequency" required min="1" value="30">
+                    <small>How often you want to meet</small>
+                </div>
+                <div class="form-actions">
+                    <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Friend</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut as fbSignOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCLhzHSn2zZZzB0_vStEJ66wdnYBcyPHdA",
+            authDomain: "matecheck-prod.firebaseapp.com",
+            projectId: "matecheck-prod",
+            storageBucket: "matecheck-prod.firebasestorage.app",
+            messagingSenderId: "626636700955",
+            appId: "1:626636700955:web:8503902071d5ae6a9167be"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUser = null;
+        let editingFriendId = null;
+        let friendsData = [];
+        let currentSection = 'home';
+
+        // Auth state observer
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('loginScreen').classList.add('hidden');
+                document.getElementById('app').classList.remove('hidden');
+                document.getElementById('userName').textContent = user.displayName || 'User';
+                document.getElementById('userEmail').textContent = user.email;
+
+                // Set user avatar
+                const userPhoto = document.getElementById('userPhoto');
+                const userInitial = document.getElementById('userInitial');
+                if (user.photoURL) {
+                    userPhoto.src = user.photoURL;
+                    userPhoto.style.display = 'block';
+                    userInitial.style.display = 'none';
+                    userPhoto.onerror = () => {
+                        userPhoto.style.display = 'none';
+                        userInitial.style.display = 'block';
+                        userInitial.textContent = (user.displayName || user.email || 'U')[0].toUpperCase();
+                    };
+                } else {
+                    userInitial.textContent = (user.displayName || user.email || 'U')[0].toUpperCase();
+                    userInitial.style.display = 'block';
+                }
+
+                loadFriends();
+            } else {
+                currentUser = null;
+                document.getElementById('loginScreen').classList.remove('hidden');
+                document.getElementById('app').classList.add('hidden');
+            }
+        });
+
+        // Show section
+        window.showSection = (section) => {
+            currentSection = section;
+
+            // Update nav items
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event?.currentTarget?.classList.add('active');
+
+            // Show/hide sections
+            document.getElementById('homeSection').classList.toggle('hidden', section !== 'home');
+            document.getElementById('friendsSection').classList.toggle('hidden', section !== 'friends');
+        };
+
+        // Sign in
+        window.signIn = async () => {
+            const provider = new GoogleAuthProvider();
+            try {
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                showError('Sign in failed: ' + error.message);
+            }
+        };
+
+        // Sign out
+        window.signOut = async () => {
+            if (!confirm('Are you sure you want to sign out?')) return;
+            try {
+                await fbSignOut(auth);
+            } catch (error) {
+                showError('Sign out failed: ' + error.message);
+            }
+        };
+
+        // Load friends from Firestore
+        window.loadFriends = async () => {
+            try {
+                const friendsCollection = collection(db, 'friends');
+                const snapshot = await getDocs(friendsCollection);
+
+                friendsData = [];
+                snapshot.forEach((doc) => {
+                    friendsData.push({ id: doc.id, ...doc.data() });
+                });
+
+                friendsData.sort((a, b) => a.name.localeCompare(b.name));
+
+                updateStats();
+                displayFriendsTable();
+            } catch (error) {
+                showError('Failed to load friends: ' + error.message);
+            }
+        };
+
+        // Update statistics
+        function updateStats() {
+            document.getElementById('totalFriends').textContent = friendsData.length;
+        }
+
+        // Display friends table
+        function displayFriendsTable() {
+            const tbody = document.getElementById('friendsTableBody');
+
+            if (friendsData.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5">
+                            <div class="empty-state">
+                                <div class="icon">👥</div>
+                                <h3>No friends yet</h3>
+                                <p>Add your first friend to get started</p>
+                                <button onclick="openAddFriendModal()" class="btn btn-primary">Add Friend</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = friendsData.map(friend => `
+                <tr>
+                    <td>
+                        <div class="friend-name">${escapeHtml(friend.name)}</div>
+                        <div class="friend-id">${escapeHtml(friend.id)}</div>
+                    </td>
+                    <td>
+                        <div class="contact-info">
+                            ${friend.email ? `<div class="contact-item">📧 ${escapeHtml(friend.email)}</div>` : ''}
+                            ${friend.telegram_username ? `<div class="contact-item">✈️ @${escapeHtml(friend.telegram_username)}</div>` : ''}
+                            ${friend.whatsapp_phone ? `<div class="contact-item">📱 ${escapeHtml(friend.whatsapp_phone)}</div>` : ''}
+                            ${!friend.email && !friend.telegram_username && !friend.whatsapp_phone ? '<span style="color: #cbd5e0;">-</span>' : ''}
+                        </div>
+                    </td>
+                    <td>
+                        ${friend.aliases && friend.aliases.length > 0 ? `
+                            <div class="aliases">
+                                ${friend.aliases.map(alias => `<span class="alias-tag">${escapeHtml(alias)}</span>`).join('')}
+                            </div>
+                        ` : '<span style="color: #cbd5e0;">-</span>'}
+                    </td>
+                    <td>Every ${friend.frequency_days} days</td>
+                    <td>
+                        <div class="actions">
+                            <button onclick="editFriend('${escapeHtml(friend.id)}')" class="btn btn-ghost btn-small">
+                                ✏️ Edit
+                            </button>
+                            <button onclick="deleteFriend('${escapeHtml(friend.id)}')" class="btn btn-ghost btn-small">
+                                🗑️
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Open add friend modal
+        window.openAddFriendModal = () => {
+            editingFriendId = null;
+            document.getElementById('modalTitle').textContent = 'Add Friend';
+            document.getElementById('friendForm').reset();
+            document.getElementById('friendId').disabled = false;
+            document.getElementById('friendModal').classList.add('active');
+        };
+
+        // Edit friend
+        window.editFriend = async (friendId) => {
+            const friend = friendsData.find(f => f.id === friendId);
+            if (!friend) {
+                showError('Friend not found');
+                return;
+            }
+
+            editingFriendId = friendId;
+            document.getElementById('modalTitle').textContent = 'Edit Friend';
+            document.getElementById('friendId').value = friend.id;
+            document.getElementById('friendId').disabled = true;
+            document.getElementById('friendName').value = friend.name;
+            document.getElementById('friendEmail').value = friend.email || '';
+            document.getElementById('friendTelegram').value = friend.telegram_username || '';
+            document.getElementById('friendWhatsapp').value = friend.whatsapp_phone || '';
+            document.getElementById('friendAliases').value = (friend.aliases || []).join(', ');
+            document.getElementById('friendFrequency').value = friend.frequency_days;
+            document.getElementById('friendModal').classList.add('active');
+        };
+
+        // Save friend
+        window.saveFriend = async (event) => {
+            event.preventDefault();
+
+            try {
+                const friendId = editingFriendId || document.getElementById('friendId').value.trim();
+                const aliasesInput = document.getElementById('friendAliases').value.trim();
+                const aliases = aliasesInput ? aliasesInput.split(',').map(a => a.trim()).filter(a => a) : [];
+
+                const friendData = {
+                    id: friendId,
+                    name: document.getElementById('friendName').value.trim(),
+                    email: document.getElementById('friendEmail').value.trim() || null,
+                    telegram_username: document.getElementById('friendTelegram').value.trim() || null,
+                    whatsapp_phone: document.getElementById('friendWhatsapp').value.trim() || null,
+                    aliases: aliases,
+                    frequency_days: parseInt(document.getElementById('friendFrequency').value)
+                };
+
+                const friendRef = doc(db, 'friends', friendId);
+                await setDoc(friendRef, friendData);
+
+                closeModal();
+                await loadFriends();
+            } catch (error) {
+                showError('Failed to save friend: ' + error.message);
+            }
+        };
+
+        // Delete friend
+        window.deleteFriend = async (friendId) => {
+            const friend = friendsData.find(f => f.id === friendId);
+            if (!confirm(`Delete ${friend.name}? This cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const friendRef = doc(db, 'friends', friendId);
+                await deleteDoc(friendRef);
+                await loadFriends();
+            } catch (error) {
+                showError('Failed to delete friend: ' + error.message);
+            }
+        };
+
+        // Close modal
+        window.closeModal = () => {
+            document.getElementById('friendModal').classList.remove('active');
+            document.getElementById('friendForm').reset();
+            editingFriendId = null;
+        };
+
+        // Show error
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+            setTimeout(() => {
+                errorDiv.classList.add('hidden');
+            }, 5000);
+        }
+
+        // Escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
