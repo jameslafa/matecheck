@@ -1,10 +1,10 @@
 use anyhow::{Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 
 /// Represents a single friend to track meetings with.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Friend {
     /// Unique identifier for this friend (must be unique across all friends)
     pub id: String,
@@ -65,6 +65,65 @@ impl Config {
         config.validate_unique_ids()?;
 
         Ok(config)
+    }
+
+    /// Load friends configuration from Firestore
+    ///
+    /// # Errors
+    /// Returns error if Firestore query fails or validation fails
+    pub async fn load_from_firestore(
+        client: &crate::firestore::FirestoreClient,
+    ) -> Result<Config> {
+        let friends = client.friends().get_all().await?;
+
+        let config = Config { friends };
+
+        // Validate that all friend IDs are unique
+        config.validate_unique_ids()?;
+
+        Ok(config)
+    }
+
+    /// Auto-select config source (Firestore first, YAML fallback)
+    ///
+    /// This provides fail-open behavior:
+    /// 1. Try Firestore if client is available
+    /// 2. Fall back to YAML if Firestore fails
+    /// 3. Return error only if both fail
+    ///
+    /// # Errors
+    /// Returns error if both Firestore and YAML loading fail
+    pub async fn load_auto(
+        firestore: Option<&crate::firestore::FirestoreClient>,
+        yaml_path: &str,
+        debug: bool,
+    ) -> Result<Config> {
+        // Try Firestore first if available
+        if let Some(client) = firestore {
+            match Self::load_from_firestore(client).await {
+                Ok(config) => {
+                    if debug {
+                        println!(
+                            "✓ Config loaded from Firestore ({} friends)",
+                            config.friends.len()
+                        );
+                    }
+                    return Ok(config);
+                }
+                Err(e) => {
+                    eprintln!(
+                        "⚠️  Firestore config failed: {}. Falling back to YAML.",
+                        e
+                    );
+                }
+            }
+        }
+
+        // Fall back to YAML
+        if debug {
+            println!("✓ Config loaded from YAML");
+        }
+        Self::load(yaml_path)
     }
 
     /// Validates that all friend IDs are unique.

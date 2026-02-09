@@ -1,6 +1,7 @@
 use anyhow::Result;
 use firestore::FirestoreDb;
 
+use super::friends::FriendsRepository;
 use super::snoozes::SnoozesRepository;
 
 /// Firestore client for managing database connections
@@ -24,6 +25,11 @@ impl FirestoreClient {
         let db = FirestoreDb::new(&project_id).await?;
 
         Ok(Self { db })
+    }
+
+    /// Returns a repository for managing friends
+    pub fn friends(&self) -> FriendsRepository<'_> {
+        FriendsRepository::new(&self.db)
     }
 
     /// Returns a repository for managing snoozes

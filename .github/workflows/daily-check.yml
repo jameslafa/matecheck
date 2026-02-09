@@ -7,7 +7,8 @@
 #    - GOOGLE_OAUTH_TOKEN: Content of your token.json file (refresh tokens last 6+ months)
 #    - TELEGRAM_BOT_TOKEN: Your bot token from @BotFather
 #    - TELEGRAM_CHAT_ID: Your chat ID (run locally: cargo run --bin get_chat_id)
-#    - FRIENDS_CONFIG: Content of your friends.yaml file
+#    - FIREBASE_SERVICE_ACCOUNT: Content of your service-account.json file (for Firestore)
+#    - FRIENDS_CONFIG: Content of your friends.yaml file (fallback only)
 #
 # NOTE: OAuth tokens refresh automatically. If expired, regenerate token.json locally and update secret.
 #
@@ -59,10 +60,17 @@ jobs:
           echo '${{ secrets.FRIENDS_CONFIG }}' > friends.yaml
           chmod 600 friends.yaml
 
+      - name: Create service-account.json from secret
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > service-account.json
+          chmod 600 service-account.json
+
       - name: Create .env file
         run: |
           echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > .env
           echo "TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}" >> .env
+          echo "GOOGLE_APPLICATION_CREDENTIALS=./service-account.json" >> .env
+          echo "FIREBASE_PROJECT_ID=matecheck-prod" >> .env
           chmod 600 .env
 
       - name: Build release binary

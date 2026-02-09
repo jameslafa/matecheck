@@ -12,6 +12,10 @@ path = "src/main.rs"
 name = "record_calendar_response"
 path = "src/bin/record_calendar_response.rs"
 
+[[bin]]
+name = "migrate_friends"
+path = "src/bin/migrate_friends.rs"
+
 [dependencies]
 # Serialization - for loading YAML config
 serde = { version = "1.0", features = ["derive"] }

@@ -171,11 +171,26 @@ async fn main() {
         println!("[DEBUG] Config path: {}", args.config);
     }
 
-    // Load config using the path from CLI args
-    let config = match config::Config::load(&args.config) {
+    // Initialize Firestore client (fail-open on error)
+    let firestore = match firestore::FirestoreClient::new().await {
+        Ok(client) => {
+            if args.debug {
+                println!("✓ Firestore connected");
+            }
+            Some(client)
+        }
+        Err(e) => {
+            eprintln!("⚠️  Firestore unavailable: {}. Snooze feature disabled.", e);
+            None
+        }
+    };
+
+    // Load config (Firestore first, YAML fallback)
+    let config = match config::Config::load_auto(firestore.as_ref(), &args.config, args.debug)
+        .await
+    {
         Ok(config) => {
             if args.debug {
-                println!("✓ Config loaded: {} friends", config.friends.len());
                 for friend in &config.friends {
                     let email = friend.email.as_ref().map_or("no email", |e| e.as_str());
                     let tg = friend
@@ -201,20 +216,6 @@ async fn main() {
                 eprintln!("[DEBUG] Full error: {:?}", error);
             }
             std::process::exit(1);
-        }
-    };
-
-    // Initialize Firestore client (fail-open on error)
-    let firestore = match firestore::FirestoreClient::new().await {
-        Ok(client) => {
-            if args.debug {
-                println!("✓ Firestore connected");
-            }
-            Some(client)
-        }
-        Err(e) => {
-            eprintln!("⚠️  Firestore unavailable: {}. Snooze feature disabled.", e);
-            None
         }
     };
 
