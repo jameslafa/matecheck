@@ -102,11 +102,15 @@ impl Config {
         if let Some(client) = firestore {
             match Self::load_from_firestore(client).await {
                 Ok(config) => {
+                    println!(
+                        "✓ Config loaded from Firestore ({} friends)",
+                        config.friends.len()
+                    );
                     if debug {
-                        println!(
-                            "✓ Config loaded from Firestore ({} friends)",
-                            config.friends.len()
-                        );
+                        // Additional debug info
+                        for friend in &config.friends {
+                            println!("  - {} ({})", friend.name, friend.id);
+                        }
                     }
                     return Ok(config);
                 }
@@ -120,9 +124,7 @@ impl Config {
         }
 
         // Fall back to YAML
-        if debug {
-            println!("✓ Config loaded from YAML");
-        }
+        println!("✓ Config loaded from YAML");
         Self::load(yaml_path)
     }
 
