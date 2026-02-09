@@ -127,7 +127,7 @@ matecheck/
 
 2. **Add repository secrets** (Settings → Secrets → Actions):
    - `GOOGLE_CREDENTIALS` - Content of `credentials.json`
-   - `GOOGLE_OAUTH_TOKEN` - Content of `token.json`
+   - `GOOGLE_OAUTH_TOKEN` - Content of `token.json` (refresh tokens last 6+ months)
    - `TELEGRAM_BOT_TOKEN` - Your bot token
    - `TELEGRAM_CHAT_ID` - Your chat ID
    - `FRIENDS_CONFIG` - Content of `friends.yaml`

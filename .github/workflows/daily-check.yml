@@ -4,10 +4,12 @@
 # 1. Go to your repo Settings → Secrets and variables → Actions
 # 2. Add these Repository secrets:
 #    - GOOGLE_CREDENTIALS: Content of your credentials.json file
-#    - GOOGLE_OAUTH_TOKEN: Content of your token.json file
+#    - GOOGLE_OAUTH_TOKEN: Content of your token.json file (refresh tokens last 6+ months)
 #    - TELEGRAM_BOT_TOKEN: Your bot token from @BotFather
 #    - TELEGRAM_CHAT_ID: Your chat ID (run locally: cargo run --bin get_chat_id)
 #    - FRIENDS_CONFIG: Content of your friends.yaml file
+#
+# NOTE: OAuth tokens refresh automatically. If expired, regenerate token.json locally and update secret.
 #
 # SCHEDULE:
 # - Weekdays (Mon-Fri): 8:00 AM Berlin time (CET/winter)
