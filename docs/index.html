@@ -733,17 +733,13 @@
             </div>
 
             <nav class="nav-menu">
-                <div class="nav-item active" onclick="showSection('home')">
-                    <span class="icon">🏠</span>
-                    <span>Home</span>
+                <div class="nav-item active" onclick="showSection('status')">
+                    <span class="icon">📊</span>
+                    <span>Status Report</span>
                 </div>
                 <div class="nav-item" onclick="showSection('friends')">
                     <span class="icon">👥</span>
                     <span>Friends</span>
-                </div>
-                <div class="nav-item" onclick="showSection('status')">
-                    <span class="icon">📊</span>
-                    <span>Status Report</span>
                 </div>
             </nav>
 
@@ -769,7 +765,7 @@
             <div id="error" class="error hidden"></div>
 
             <!-- Home Section -->
-            <div id="homeSection">
+            <div id="homeSection" class="hidden">
                 <div class="content-header">
                     <h2>Dashboard</h2>
                 </div>
@@ -803,7 +799,7 @@
             </div>
 
             <!-- Status Report Section -->
-            <div id="statusSection" class="hidden">
+            <div id="statusSection">
                 <div class="content-header">
                     <h2>Status Report</h2>
                 </div>
@@ -955,7 +951,7 @@
         let currentUser = null;
         let editingFriendId = null;
         let friendsData = [];
-        let currentSection = 'home';
+        let currentSection = 'status';
 
         // Auth state observer
         onAuthStateChanged(auth, (user) => {
@@ -984,6 +980,7 @@
                 }
 
                 loadFriends();
+                loadStatusReport();
             } else {
                 currentUser = null;
                 document.getElementById('loginScreen').classList.remove('hidden');
@@ -1016,7 +1013,6 @@
             event?.currentTarget?.classList.add('active');
 
             // Show/hide sections
-            document.getElementById('homeSection').classList.toggle('hidden', section !== 'home');
             document.getElementById('statusSection').classList.toggle('hidden', section !== 'status');
             document.getElementById('friendsSection').classList.toggle('hidden', section !== 'friends');
 
@@ -1318,10 +1314,6 @@
                         <div class="stat-value" style="color: #276749;">${onTrack}</div>
                         <div class="stat-label">On Track</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" style="color: #4a5568;">${neverMet}</div>
-                        <div class="stat-label">Never Met</div>
-                    </div>
                 `;
 
                 // Sort: overdue first
@@ -1335,10 +1327,12 @@
                     never_met: 'Never Met'
                 };
 
-                function formatDate(d) {
-                    if (!d) return '-';
-                    const date = d.toDate ? d.toDate() : new Date(d);
-                    return date.toLocaleDateString();
+                function nextPlannedText(f) {
+                    if (!f.next_planned_date) return '-';
+                    const date = f.next_planned_date.toDate ? f.next_planned_date.toDate() : new Date(f.next_planned_date);
+                    const daysUntil = Math.round((date.getTime() - Date.now()) / 864e5);
+                    const when = daysUntil <= 0 ? 'today' : daysUntil === 1 ? 'tomorrow' : `in ${daysUntil}d`;
+                    return `📅 ${when}`;
                 }
 
                 function badgeClass(f) {
@@ -1366,7 +1360,7 @@
                             ${f.last_seen_event ? `<div style="font-size: 12px; color: #718096;">${escapeHtml(f.last_seen_event)}</div>` : ''}
                         </td>
                         <td>
-                            <div>${formatDate(f.next_planned_date)}</div>
+                            <div>${nextPlannedText(f)}</div>
                             ${f.next_planned_event ? `<div style="font-size: 12px; color: #718096;">${escapeHtml(f.next_planned_event)}</div>` : ''}
                         </td>
                         <td>Every ${f.frequency_days}d</td>
@@ -1386,7 +1380,7 @@
                         </div>
                         <div class="friend-card-body">
                             <div><strong>Last seen:</strong> ${lastSeenText(f)}${f.last_seen_event ? ` — ${escapeHtml(f.last_seen_event)}` : ''}</div>
-                            <div><strong>Next planned:</strong> ${formatDate(f.next_planned_date)}${f.next_planned_event ? ` — ${escapeHtml(f.next_planned_event)}` : ''}</div>
+                            <div><strong>Next planned:</strong> ${nextPlannedText(f)}${f.next_planned_event ? ` — ${escapeHtml(f.next_planned_event)}` : ''}</div>
                             <div><strong>Frequency:</strong> Every ${f.frequency_days} days</div>
                             ${f.days_overdue > 0 ? `<div><strong>Overdue:</strong> ${f.days_overdue} days</div>` : ''}
                         </div>
