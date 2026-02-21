@@ -666,6 +666,39 @@
             }
         }
 
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-badge.overdue {
+            background: #fed7d7;
+            color: #c53030;
+        }
+
+        .status-badge.due_soon {
+            background: #fefcbf;
+            color: #975a16;
+        }
+
+        .status-badge.on_track {
+            background: #c6f6d5;
+            color: #276749;
+        }
+
+        .status-badge.never_met {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .status-badge.snoozed {
+            background: #e9d8fd;
+            color: #553c9a;
+        }
+
         .friends-mobile {
             display: none;
         }
@@ -708,10 +741,9 @@
                     <span class="icon">👥</span>
                     <span>Friends</span>
                 </div>
-                <div class="nav-item" style="opacity: 0.5; cursor: not-allowed;">
+                <div class="nav-item" onclick="showSection('status')">
                     <span class="icon">📊</span>
-                    <span>Analytics</span>
-                    <span style="margin-left: auto; font-size: 10px; background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">Soon</span>
+                    <span>Status Report</span>
                 </div>
             </nav>
 
@@ -765,6 +797,48 @@
                             <button onclick="showSection('friends'); openAddFriendModal();" class="btn btn-secondary">
                                 ➕ Add New Friend
                             </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Report Section -->
+            <div id="statusSection" class="hidden">
+                <div class="content-header">
+                    <h2>Status Report</h2>
+                </div>
+                <div class="content-body">
+                    <div id="statusLoading" style="text-align: center; padding: 32px; color: #718096;">
+                        Loading status report...
+                    </div>
+                    <div id="statusContent" class="hidden">
+                        <div id="statusUpdatedAt" style="font-size: 13px; color: #718096; margin-bottom: 16px;"></div>
+                        <div class="stats-grid" id="statusStats"></div>
+
+                        <!-- Desktop Table -->
+                        <div class="table-container" id="statusTableContainer">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Friend</th>
+                                        <th>Last Seen</th>
+                                        <th>Next Planned</th>
+                                        <th>Frequency</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="statusTableBody"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- Mobile Cards -->
+                        <div id="statusMobile" class="friends-mobile"></div>
+                    </div>
+                    <div id="statusEmpty" class="hidden">
+                        <div class="empty-state">
+                            <div class="icon">📊</div>
+                            <h3>No status report yet</h3>
+                            <p>The status report will be generated after the next cron run.</p>
                         </div>
                     </div>
                 </div>
@@ -860,16 +934,17 @@
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut as fbSignOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-        import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getFirestore, collection, getDocs, doc, getDoc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-        // Firebase configuration
+        // Firebase configuration - REPLACE WITH YOUR OWN
+        // See docs/SETUP.md for instructions
         const firebaseConfig = {
-            apiKey: "AIzaSyCLhzHSn2zZZzB0_vStEJ66wdnYBcyPHdA",
-            authDomain: "matecheck-prod.firebaseapp.com",
-            projectId: "matecheck-prod",
-            storageBucket: "matecheck-prod.firebasestorage.app",
-            messagingSenderId: "626636700955",
-            appId: "1:626636700955:web:8503902071d5ae6a9167be"
+            apiKey: "YOUR_API_KEY",
+            authDomain: "your-project.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project.firebasestorage.app",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
         };
 
         // Initialize Firebase
@@ -942,7 +1017,12 @@
 
             // Show/hide sections
             document.getElementById('homeSection').classList.toggle('hidden', section !== 'home');
+            document.getElementById('statusSection').classList.toggle('hidden', section !== 'status');
             document.getElementById('friendsSection').classList.toggle('hidden', section !== 'friends');
+
+            if (section === 'status') {
+                loadStatusReport();
+            }
         };
 
         // Sign in
@@ -1188,6 +1268,136 @@
             div.textContent = text;
             return div.innerHTML;
         }
+
+        // Load status report from Firestore
+        window.loadStatusReport = async () => {
+            const loading = document.getElementById('statusLoading');
+            const content = document.getElementById('statusContent');
+            const empty = document.getElementById('statusEmpty');
+
+            loading.classList.remove('hidden');
+            content.classList.add('hidden');
+            empty.classList.add('hidden');
+
+            try {
+                const statusRef = doc(db, 'status', 'latest');
+                const snapshot = await getDoc(statusRef);
+
+                loading.classList.add('hidden');
+
+                if (!snapshot.exists()) {
+                    empty.classList.remove('hidden');
+                    return;
+                }
+
+                const report = snapshot.data();
+                content.classList.remove('hidden');
+
+                // Updated at
+                const updatedAt = report.updated_at?.toDate ? report.updated_at.toDate() : new Date(report.updated_at);
+                document.getElementById('statusUpdatedAt').textContent =
+                    `Last updated: ${updatedAt.toLocaleString()}`;
+
+                // Summary stats
+                const friends = report.friends || [];
+                const overdue = friends.filter(f => f.status === 'overdue').length;
+                const dueSoon = friends.filter(f => f.status === 'due_soon').length;
+                const onTrack = friends.filter(f => f.status === 'on_track').length;
+                const neverMet = friends.filter(f => f.status === 'never_met').length;
+
+                document.getElementById('statusStats').innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: #c53030;">${overdue}</div>
+                        <div class="stat-label">Overdue</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: #975a16;">${dueSoon}</div>
+                        <div class="stat-label">Due Soon</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: #276749;">${onTrack}</div>
+                        <div class="stat-label">On Track</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: #4a5568;">${neverMet}</div>
+                        <div class="stat-label">Never Met</div>
+                    </div>
+                `;
+
+                // Sort: overdue first
+                const order = ['overdue', 'due_soon', 'on_track', 'never_met'];
+                friends.sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
+
+                const statusLabels = {
+                    overdue: 'Overdue',
+                    due_soon: 'Due Soon',
+                    on_track: 'On Track',
+                    never_met: 'Never Met'
+                };
+
+                function formatDate(d) {
+                    if (!d) return '-';
+                    const date = d.toDate ? d.toDate() : new Date(d);
+                    return date.toLocaleDateString();
+                }
+
+                function badgeClass(f) {
+                    return f.snoozed ? 'snoozed' : f.status;
+                }
+
+                function badgeLabel(f) {
+                    return f.snoozed ? '💤 Snoozed' : statusLabels[f.status];
+                }
+
+                function lastSeenText(f) {
+                    if (f.days_since_last_seen == null) return '-';
+                    return `${f.days_since_last_seen}d ago`;
+                }
+
+                // Desktop table
+                document.getElementById('statusTableBody').innerHTML = friends.map(f => `
+                    <tr>
+                        <td>
+                            <div class="friend-name">${escapeHtml(f.friend_name)}</div>
+                            <div class="friend-id">${escapeHtml(f.friend_id)}</div>
+                        </td>
+                        <td>
+                            <div>${lastSeenText(f)}</div>
+                            ${f.last_seen_event ? `<div style="font-size: 12px; color: #718096;">${escapeHtml(f.last_seen_event)}</div>` : ''}
+                        </td>
+                        <td>
+                            <div>${formatDate(f.next_planned_date)}</div>
+                            ${f.next_planned_event ? `<div style="font-size: 12px; color: #718096;">${escapeHtml(f.next_planned_event)}</div>` : ''}
+                        </td>
+                        <td>Every ${f.frequency_days}d</td>
+                        <td><span class="status-badge ${badgeClass(f)}">${badgeLabel(f)}</span></td>
+                    </tr>
+                `).join('');
+
+                // Mobile cards
+                document.getElementById('statusMobile').innerHTML = friends.map(f => `
+                    <div class="friend-card-mobile">
+                        <div class="friend-card-header">
+                            <div>
+                                <div class="friend-name">${escapeHtml(f.friend_name)}</div>
+                                <div class="friend-id">${escapeHtml(f.friend_id)}</div>
+                            </div>
+                            <span class="status-badge ${badgeClass(f)}">${badgeLabel(f)}</span>
+                        </div>
+                        <div class="friend-card-body">
+                            <div><strong>Last seen:</strong> ${lastSeenText(f)}${f.last_seen_event ? ` — ${escapeHtml(f.last_seen_event)}` : ''}</div>
+                            <div><strong>Next planned:</strong> ${formatDate(f.next_planned_date)}${f.next_planned_event ? ` — ${escapeHtml(f.next_planned_event)}` : ''}</div>
+                            <div><strong>Frequency:</strong> Every ${f.frequency_days} days</div>
+                            ${f.days_overdue > 0 ? `<div><strong>Overdue:</strong> ${f.days_overdue} days</div>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                loading.classList.add('hidden');
+                showError('Failed to load status report: ' + error.message);
+            }
+        };
     </script>
 </body>
 </html>

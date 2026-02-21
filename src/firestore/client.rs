@@ -3,6 +3,7 @@ use firestore::FirestoreDb;
 
 use super::friends::FriendsRepository;
 use super::snoozes::SnoozesRepository;
+use super::status::StatusRepository;
 
 /// Firestore client for managing database connections
 pub struct FirestoreClient {
@@ -35,5 +36,10 @@ impl FirestoreClient {
     /// Returns a repository for managing snoozes
     pub fn snoozes(&self) -> SnoozesRepository<'_> {
         SnoozesRepository::new(&self.db)
+    }
+
+    /// Returns a repository for managing the status report
+    pub fn status(&self) -> StatusRepository<'_> {
+        StatusRepository::new(&self.db)
     }
 }

@@ -10,6 +10,17 @@ admin.initializeApp();
 const db = admin.firestore();
 
 interface TelegramUpdate {
+  message?: {
+    message_id: number;
+    chat: {
+      id: number;
+    };
+    text?: string;
+    from?: {
+      id: number;
+      first_name: string;
+    };
+  };
   callback_query?: {
     id: string;
     from: {
@@ -24,6 +35,25 @@ interface TelegramUpdate {
     };
     data?: string;
   };
+}
+
+interface FriendStatus {
+  friend_id: string;
+  friend_name: string;
+  last_seen_date?: string;
+  last_seen_event?: string;
+  next_planned_date?: string;
+  next_planned_event?: string;
+  days_since_last_seen?: number;
+  frequency_days: number;
+  days_overdue: number;
+  status: "on_track" | "due_soon" | "overdue" | "never_met";
+  snoozed: boolean;
+}
+
+interface StatusReport {
+  updated_at: string;
+  friends: FriendStatus[];
 }
 
 interface SnoozeData {
@@ -124,6 +154,83 @@ async function answerCallbackQuery(
 // }
 
 /**
+ * Send a Telegram message
+ */
+async function sendTelegramMessage(
+  chatId: number,
+  text: string,
+  botToken: string
+): Promise<void> {
+  const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      parse_mode: "Markdown",
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("Failed to send message:", error);
+  }
+}
+
+/**
+ * Format status report for Telegram
+ */
+function formatStatusReport(report: StatusReport): string {
+  const statusEmoji: Record<string, string> = {
+    overdue: "🔴",
+    due_soon: "🟡",
+    on_track: "🟢",
+    never_met: "⚪",
+  };
+
+  // Sort: overdue first, then due_soon, on_track, never_met
+  const order = ["overdue", "due_soon", "on_track", "never_met"];
+  const sorted = [...report.friends].sort(
+    (a, b) => order.indexOf(a.status) - order.indexOf(b.status)
+  );
+
+  const lines = sorted.map((f) => {
+    const emoji = statusEmoji[f.status] || "⚪";
+    const snoozed = f.snoozed ? " 💤" : "";
+    let detail: string;
+
+    if (f.status === "never_met") {
+      detail = "never met";
+    } else if (f.days_since_last_seen != null) {
+      detail = `${f.days_since_last_seen}d ago`;
+      if (f.days_overdue > 0) {
+        detail += ` (${f.days_overdue}d overdue)`;
+      }
+    } else {
+      detail = "no data";
+    }
+
+    if (f.next_planned_event) {
+      const daysUntil = Math.round((new Date(f.next_planned_date!).getTime() - Date.now()) / 864e5);
+      const when = daysUntil <= 0 ? "today" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil}d`;
+      detail += ` · 📅 ${when}`;
+    }
+
+    return `${emoji} *${f.friend_name}*: ${detail}${snoozed}`;
+  });
+
+  const overdue = report.friends.filter((f) => f.status === "overdue").length;
+  const dueSoon = report.friends.filter((f) => f.status === "due_soon").length;
+  const onTrack = report.friends.filter((f) => f.status === "on_track").length;
+
+  const header = `📊 *Friend Status Report*\n🔴 ${overdue} overdue · 🟡 ${dueSoon} due soon · 🟢 ${onTrack} on track\n`;
+
+  return header + "\n" + lines.join("\n");
+}
+
+/**
  * Main webhook handler
  */
 export const webhook = onRequest(
@@ -138,6 +245,37 @@ export const webhook = onRequest(
     }
 
     const update: TelegramUpdate = req.body;
+
+    // Handle /report command
+    if (update.message?.text === "/report" && update.message.chat) {
+      try {
+        const statusDoc = await db.collection("status").doc("latest").get();
+        if (!statusDoc.exists) {
+          await sendTelegramMessage(
+            update.message.chat.id,
+            "No status report available yet. Run the cron job first.",
+            botToken
+          );
+        } else {
+          const report = statusDoc.data() as StatusReport;
+          const formatted = formatStatusReport(report);
+          await sendTelegramMessage(
+            update.message.chat.id,
+            formatted,
+            botToken
+          );
+        }
+      } catch (error) {
+        console.error("Error handling /report:", error);
+        await sendTelegramMessage(
+          update.message.chat.id,
+          "❌ Failed to load status report.",
+          botToken
+        );
+      }
+      res.status(200).send("OK");
+      return;
+    }
 
     // Handle callback queries (button clicks)
     if (update.callback_query) {

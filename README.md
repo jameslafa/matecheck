@@ -24,6 +24,7 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
 - **Firestore Configuration** - Store friends config in Firebase Firestore
 - **Web UI** - Mobile-responsive web interface for managing friends
   - Add, edit, and delete friends via intuitive UI
+  - Status report dashboard with color-coded badges
   - No YAML editing required
   - Deployed on GitHub Pages
   - Google Sign-In authentication
@@ -41,6 +42,11 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
   - Click inline buttons in Telegram: 3 days, 1 week, or 2 weeks
   - Powered by Firebase Firestore + Cloud Functions
   - Fail-open design (works even if Firebase is unavailable)
+- **Status Report** - Full overview of where you stand with all friends
+  - Stored as a single Firestore document, updated each cron run
+  - Send `/report` to your Telegram bot for a formatted summary
+  - View in the web UI with color-coded status badges
+  - Statuses: on track, due soon, overdue, never met
 - **Do Not Disturb Mode** - Automatically pauses ALL reminders during specific periods
   - Create all-day calendar events with 🔕 emoji or [DND] text
   - Examples: "🔕 Vacation in Paris", "[DND] Focus Week"
@@ -87,6 +93,7 @@ matecheck/
 │   ├── firestore/           # Firebase Firestore integration
 │   │   ├── client.rs        # Firestore connection
 │   │   ├── snoozes.rs       # Snooze repository (CRUD)
+│   │   ├── status.rs        # Status report repository
 │   │   └── types.rs         # Firestore data types
 │   ├── matcher.rs           # Event-to-friend matching logic
 │   ├── reminder/
@@ -100,7 +107,7 @@ matecheck/
 │   └── SETUP.md             # Deployment guide
 ├── functions/               # Firebase Cloud Functions (TypeScript)
 │   ├── src/
-│   │   └── index.ts         # Webhook handler for button callbacks
+│   │   └── index.ts         # Webhook handler for buttons + /report command
 │   ├── package.json
 │   └── tsconfig.json
 ├── .github/
@@ -265,17 +272,18 @@ friends:
 
 1. **Loads Active Snoozes** - Queries Firestore for snoozed friends (fail-open if unavailable)
 2. **Fetches Calendar Events** - Gets events from last 90 days + future events
-3. **Checks Do Not Disturb** - Exits early if DND event detected (skips all reminders)
-4. **Matches Friends** - Identifies which events involved which friends
-5. **Calculates Last Meeting** - Finds most recent past meeting per friend
-6. **Checks Future Meetings** - Looks for upcoming scheduled meetings
-7. **Applies Smart Logic:**
+3. **Writes Status Report** - Computes and stores friend status snapshot in Firestore
+4. **Checks Do Not Disturb** - Exits early if DND event detected (skips all reminders)
+5. **Matches Friends** - Identifies which events involved which friends
+6. **Calculates Last Meeting** - Finds most recent past meeting per friend
+7. **Checks Future Meetings** - Looks for upcoming scheduled meetings
+8. **Applies Smart Logic:**
    - Filters out snoozed friends
    - Reminds at 85% of target frequency (15% buffer)
    - Skips reminder if meeting already scheduled
    - Ignores recurring events (birthdays)
-8. **Sends Telegram Message** - Formatted list with inline snooze buttons
-9. **Button Callback** - Cloud Function handles button clicks, updates Firestore
+9. **Sends Telegram Message** - Formatted list with inline snooze buttons
+10. **Button Callback** - Cloud Function handles button clicks, updates Firestore
 
 ## Development
 

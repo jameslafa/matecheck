@@ -1,6 +1,7 @@
 pub mod client;
 pub mod friends;
 pub mod snoozes;
-mod types;
+pub mod status;
+pub mod types;
 
 pub use client::FirestoreClient;
