@@ -4,7 +4,6 @@ use std::i64;
 use crate::calendar::types::Event;
 use crate::config::{Config, Friend};
 use crate::matcher;
-use chrono::Utc;
 
 /// Information about a friend who needs a reminder
 #[derive(Debug, Clone)]
@@ -61,17 +60,11 @@ pub fn find_friends_needing_reminders(
         let days_since = matcher::days_since_last_meeting(last_meeting.as_ref().unwrap());
 
         // Check if they have an upcoming meeting
-        let has_upcoming_meeting = next_meetings_by_friend
+        let next_meeting = next_meetings_by_friend
             .get(&friend.id)
-            .and_then(|opt_event| opt_event.as_ref())
-            .and_then(|event| {
-                let days_until = (event.start - Utc::now()).num_days();
-                if days_until >= 0 && days_until <= friend.frequency_days as i64 {
-                    Some(days_until)
-                } else {
-                    None
-                }
-            });
+            .and_then(|opt| opt.as_ref());
+        let has_upcoming_meeting =
+            matcher::days_until_next_meeting_within_window(next_meeting, friend.frequency_days);
 
         // Calculate reminder threshold with automatic 15% buffer
         let buffer = friend.buffer_days();

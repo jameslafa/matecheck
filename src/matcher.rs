@@ -127,6 +127,21 @@ pub fn days_since(event_time: DateTime<Utc>) -> Option<i64> {
     Some(num_days)
 }
 
+/// Returns Some(days_until) if `next` event is within the frequency window, else None.
+/// "Within window" means: event is in the future AND within `frequency_days` from now.
+pub fn days_until_next_meeting_within_window(
+    next: Option<&Event>,
+    frequency_days: u32,
+) -> Option<i64> {
+    let event = next?;
+    let days_until = (event.start - Utc::now()).num_days();
+    if days_until >= 0 && days_until <= frequency_days as i64 {
+        Some(days_until)
+    } else {
+        None
+    }
+}
+
 /// Calculate days since the last meeting with a friend
 ///
 /// Returns None if the friend has no recorded meetings or if the meeting is in the future.

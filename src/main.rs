@@ -310,7 +310,11 @@ async fn main() {
                                 None => 0,
                             };
 
-                            let status = if days_since.is_none() && last.is_none() {
+                            let upcoming = matcher::days_until_next_meeting_within_window(next, friend.frequency_days);
+
+                            let status = if upcoming.is_some() {
+                                firestore::types::FriendStatusValue::OnTrack
+                            } else if days_since.is_none() && last.is_none() {
                                 firestore::types::FriendStatusValue::NeverMet
                             } else if days_overdue > 0 {
                                 firestore::types::FriendStatusValue::Overdue
