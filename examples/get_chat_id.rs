@@ -25,6 +25,7 @@ struct Chat {
 }
 
 #[derive(Deserialize, Debug)]
+#[allow(dead_code)]
 struct User {
     id: i64,
     username: Option<String>,
@@ -32,6 +33,7 @@ struct User {
 }
 
 #[derive(Deserialize, Debug)]
+#[allow(dead_code)]
 struct GetUpdatesResponse {
     ok: bool,
     result: Vec<Update>,
