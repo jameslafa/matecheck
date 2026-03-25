@@ -32,9 +32,6 @@ struct Args {
     #[arg(long)]
     test_telegram: Option<Option<String>>,
 
-    /// Test formatted reminder message in Telegram
-    #[arg(long)]
-    test_formatter: bool,
 }
 
 #[tokio::main]
@@ -47,88 +44,6 @@ async fn main() {
     // Parse command-line arguments
     // This automatically handles --help and --version!
     let args = Args::parse();
-
-    // Handle --test-formatter flag early
-    if args.test_formatter {
-        println!("🎨 Testing formatted reminder message...");
-
-        // Load .env file
-        dotenvy::dotenv().ok();
-
-        let bot_token = std::env::var("TELEGRAM_BOT_TOKEN")
-            .expect("TELEGRAM_BOT_TOKEN not set in .env file");
-        let chat_id = std::env::var("TELEGRAM_CHAT_ID")
-            .expect("TELEGRAM_CHAT_ID not set in .env file");
-
-        // Create sample reminder data
-        let friend1 = config::Friend {
-            id: "alice".to_string(),
-            name: "Alice".to_string(),
-            email: Some("alice@example.com".to_string()),
-            telegram_username: Some("alice_tg".to_string()),
-            whatsapp_phone: None,
-            aliases: vec![],
-            frequency_days: 30,
-        };
-
-        let friend2 = config::Friend {
-            id: "bob".to_string(),
-            name: "Bob".to_string(),
-            email: None,
-            telegram_username: None,
-            whatsapp_phone: None,
-            aliases: vec![],
-            frequency_days: 14,
-        };
-
-        let friend3 = config::Friend {
-            id: "charlie".to_string(),
-            name: "Charlie".to_string(),
-            email: None,
-            telegram_username: Some("charlie_tg".to_string()),
-            whatsapp_phone: None,
-            aliases: vec![],
-            frequency_days: 7,
-        };
-
-        let reminders = vec![
-            reminder::ReminderInfo {
-                friend: friend1,
-                days_since_last_meeting: Some(45),
-                days_overdue: 15,
-            },
-            reminder::ReminderInfo {
-                friend: friend2,
-                days_since_last_meeting: Some(20),
-                days_overdue: 6,
-            },
-            reminder::ReminderInfo {
-                friend: friend3,
-                days_since_last_meeting: None,
-                days_overdue: 7,
-            },
-        ];
-
-        // Format the message
-        let message = telegram::format_reminder_message(&reminders);
-
-        println!("\n📝 Formatted message:\n{}", message);
-        println!("📤 Sending to Telegram...\n");
-
-        // Send via Telegram
-        let client = telegram::TelegramClient::new(bot_token);
-        match client.send_message(&chat_id, &message, false).await {
-            Ok(()) => {
-                println!("✅ Test message sent successfully!");
-                println!("Check your Telegram to see how it looks.");
-                std::process::exit(0);
-            }
-            Err(e) => {
-                eprintln!("❌ Failed to send message: {}", e);
-                std::process::exit(1);
-            }
-        }
-    }
 
     // Handle --test-telegram flag early
     if let Some(chat_id_override) = args.test_telegram {
@@ -338,11 +253,28 @@ async fn main() {
                         }
                     }).collect();
 
-                    // Write status report to Firestore
+                    // Check Do Not Disturb mode
+                    let dnd_active = calendar::dnd::is_dnd_active(&events, Utc::now());
+                    if let Some(ref dnd_event_title) = dnd_active {
+                        if args.debug {
+                            println!("🔕 Do Not Disturb is active: \"{}\"", dnd_event_title);
+                            println!("   Skipping all reminders.");
+                        }
+                    }
+
+                    if args.debug {
+                        println!("\n🔔 Checking who needs reminders...");
+                    }
+
+                    let reminders =
+                        reminder::find_friends_needing_reminders(&events, &config, &snoozed_friends);
+
+                    // Write status report to Firestore (should_notify triggers TypeScript notification)
                     if let Some(client) = &firestore {
                         let report = firestore::types::StatusReport {
                             updated_at: Utc::now(),
                             friends: friend_statuses.clone(),
+                            should_notify: dnd_active.is_none() && !reminders.is_empty(),
                         };
 
                         match client.status().write_report(&report).await {
@@ -357,23 +289,10 @@ async fn main() {
                         }
                     }
 
-                    // Check Do Not Disturb mode
-                    if let Some(dnd_event_title) = calendar::dnd::is_dnd_active(&events, Utc::now()) {
-                        if args.debug {
-                            println!("🔕 Do Not Disturb is active: \"{}\"", dnd_event_title);
-                            println!("   Skipping all reminders.");
-                        } else {
-                            println!("🔕 Do Not Disturb mode active - no reminders today.");
-                        }
+                    if dnd_active.is_some() {
+                        println!("🔕 Do Not Disturb mode active - no reminders today.");
                         return;
                     }
-
-                    if args.debug {
-                        println!("\n🔔 Checking who needs reminders...");
-                    }
-
-                    let reminders =
-                        reminder::find_friends_needing_reminders(&events, &config, &snoozed_friends);
 
                     if reminders.is_empty() {
                         println!("✅ Everyone is up to date! No reminders needed.");
@@ -400,41 +319,7 @@ async fn main() {
                                 println!();
                             }
                         }
-
-                        // Send Telegram notification
-
-                        let bot_token = match std::env::var("TELEGRAM_BOT_TOKEN") {
-                            Ok(token) => token,
-                            Err(_) => {
-                                eprintln!("⚠️  TELEGRAM_BOT_TOKEN not set in .env file");
-                                eprintln!("   Skipping Telegram notification.");
-                                return;
-                            }
-                        };
-
-                        let chat_id = match std::env::var("TELEGRAM_CHAT_ID") {
-                            Ok(id) => id,
-                            Err(_) => {
-                                eprintln!("⚠️  TELEGRAM_CHAT_ID not set in .env file");
-                                eprintln!("   Skipping Telegram notification.");
-                                return;
-                            }
-                        };
-
-                        let (message, buttons) = telegram::format_morning_with_buttons(&friend_statuses, &config.friends, &reminders);
-                        let telegram_client = telegram::TelegramClient::new(bot_token);
-
-                        match telegram_client
-                            .send_message_with_buttons(&chat_id, &message, true, Some(buttons))
-                            .await
-                        {
-                            Ok(()) => {
-                                println!("✅ Sent reminder for {} friend(s) to Telegram", reminders.len());
-                            }
-                            Err(e) => {
-                                eprintln!("❌ Failed to send Telegram notification: {}", e);
-                            }
-                        }
+                        println!("✅ Notification queued for {} friend(s) via Firestore trigger", reminders.len());
                     }
                 }
                 Err(error) => {

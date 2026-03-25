@@ -1,8 +1,11 @@
 import { onRequest } from "firebase-functions/v2/https";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 import { defineSecret } from "firebase-functions/params";
+import { StatusReport, FriendConfig, formatStatusReport, buildSnoozeButtons } from "./formatter";
 
 const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
+const telegramChatId = defineSecret("TELEGRAM_CHAT_ID");
 const githubToken = defineSecret("GITHUB_TOKEN");
 
 // Initialize Firebase Admin
@@ -32,31 +35,13 @@ interface TelegramUpdate {
       chat: {
         id: number;
       };
+      text?: string;
       reply_markup?: {
         inline_keyboard: Array<Array<{ text: string; callback_data: string }>>;
       };
     };
     data?: string;
   };
-}
-
-interface FriendStatus {
-  friend_id: string;
-  friend_name: string;
-  last_seen_date?: string;
-  last_seen_event?: string;
-  next_planned_date?: string;
-  next_planned_event?: string;
-  days_since_last_seen?: number;
-  frequency_days: number;
-  days_overdue: number;
-  status: "on_track" | "due_soon" | "overdue" | "never_met";
-  snoozed: boolean;
-}
-
-interface StatusReport {
-  updated_at: string;
-  friends: FriendStatus[];
 }
 
 interface SnoozeData {
@@ -102,6 +87,27 @@ async function snoozeFriend(friendId: string, days: number): Promise<void> {
 }
 
 /**
+ * Get IDs of all currently snoozed friends
+ */
+async function getActiveSnoozedFriendIds(): Promise<Set<string>> {
+  const now = admin.firestore.Timestamp.now();
+  const snapshot = await db.collection("snoozes")
+    .where("snoozed_until", ">", now)
+    .get();
+  const ids = new Set<string>();
+  snapshot.forEach((doc) => ids.add(doc.data().friend_id));
+  return ids;
+}
+
+/**
+ * Load all friends from Firestore
+ */
+async function getAllFriends(): Promise<FriendConfig[]> {
+  const snapshot = await db.collection("friends").get();
+  return snapshot.docs.map((doc) => doc.data() as FriendConfig);
+}
+
+/**
  * Answer Telegram callback query (dismisses loading spinner)
  */
 async function answerCallbackQuery(
@@ -109,7 +115,6 @@ async function answerCallbackQuery(
   text: string,
   botToken: string
 ): Promise<void> {
-
   const url = `https://api.telegram.org/bot${botToken}/answerCallbackQuery`;
 
   const response = await fetch(url, {
@@ -126,32 +131,6 @@ async function answerCallbackQuery(
     const error = await response.text();
     console.error("Failed to answer callback query:", error);
   }
-}
-
-/**
- * Edit the inline keyboard of an existing message, removing rows for a specific friend
- */
-async function removeSnoozeButtonsForFriend(
-  chatId: number,
-  messageId: number,
-  snoozedFriendId: string,
-  currentKeyboard: Array<Array<{ text: string; callback_data: string }>>,
-  botToken: string
-): Promise<void> {
-  const updatedKeyboard = currentKeyboard.filter(
-    (row) => !row.some((btn) => btn.callback_data.startsWith(`snooze_${snoozedFriendId}_`))
-  );
-
-  const url = `https://api.telegram.org/bot${botToken}/editMessageReplyMarkup`;
-  await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      message_id: messageId,
-      reply_markup: { inline_keyboard: updatedKeyboard },
-    }),
-  });
 }
 
 /**
@@ -181,61 +160,88 @@ async function sendTelegramMessage(
 }
 
 /**
- * Format status report for Telegram
+ * Send a Telegram message with inline keyboard buttons
  */
-function formatStatusReport(report: StatusReport): string {
-  const statusEmoji: Record<string, string> = {
-    overdue: "🔴",
-    due_soon: "🟡",
-    on_track: "🟢",
-    never_met: "⚪",
-  };
+async function sendTelegramMessageWithButtons(
+  chatId: number,
+  text: string,
+  buttons: Array<Array<{ text: string; callback_data: string }>>,
+  botToken: string
+): Promise<void> {
+  const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
 
-  // Sort: overdue first, then due_soon, on_track, never_met
-  const order = ["overdue", "due_soon", "on_track", "never_met"];
-  const sorted = [...report.friends].sort(
-    (a, b) => order.indexOf(a.status) - order.indexOf(b.status)
-  );
-
-  const lines = sorted.map((f) => {
-    const emoji = statusEmoji[f.status] || "⚪";
-    const snoozed = f.snoozed ? " 💤" : "";
-    let detail: string;
-
-    if (f.status === "never_met") {
-      detail = "never met";
-    } else if (f.days_since_last_seen != null) {
-      detail = `${f.days_since_last_seen}d ago`;
-      if (f.days_overdue > 0) {
-        detail += ` (${f.days_overdue}d overdue)`;
-      }
-    } else {
-      detail = "no data";
-    }
-
-    if (f.next_planned_event) {
-      const daysUntil = Math.round((new Date(f.next_planned_date!).getTime() - Date.now()) / 864e5);
-      const when = daysUntil <= 0 ? "today" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil}d`;
-      detail += ` · 📅 ${when}`;
-    }
-
-    return `${emoji} *${f.friend_name}*: ${detail}${snoozed}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      parse_mode: "Markdown",
+      link_preview_options: { is_disabled: true },
+      reply_markup: { inline_keyboard: buttons },
+    }),
   });
 
-  const overdue = report.friends.filter((f) => f.status === "overdue").length;
-  const dueSoon = report.friends.filter((f) => f.status === "due_soon").length;
-  const onTrack = report.friends.filter((f) => f.status === "on_track").length;
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("Failed to send message with buttons:", error);
+  }
+}
 
-  const header = `📊 *Friend Status Report*\n🔴 ${overdue} overdue · 🟡 ${dueSoon} due soon · 🟢 ${onTrack} on track\n`;
+/**
+ * Rebuild the morning message from live Firestore state after a snooze.
+ * Reads the current status report, active snoozes, and friend configs,
+ * then edits the message with accurate content and the updated keyboard.
+ */
+async function rebuildMessageAfterSnooze(
+  chatId: number,
+  messageId: number,
+  snoozedFriendId: string,
+  currentKeyboard: Array<Array<{ text: string; callback_data: string }>>,
+  botToken: string
+): Promise<void> {
+  const [statusDoc, snoozedIds, friends] = await Promise.all([
+    db.collection("status").doc("latest").get(),
+    getActiveSnoozedFriendIds(),
+    getAllFriends(),
+  ]);
 
-  return header + "\n" + lines.join("\n");
+  if (!statusDoc.exists) return;
+
+  const report = statusDoc.data() as StatusReport;
+
+  // Update snoozed flags from current live snooze state
+  report.friends = report.friends.map((f) => ({
+    ...f,
+    snoozed: snoozedIds.has(f.friend_id),
+  }));
+
+  const updatedText = formatStatusReport(report, friends);
+
+  // Remove the snoozed friend's button row
+  const updatedKeyboard = currentKeyboard.filter(
+    (row) => !row.some((btn) => btn.callback_data.startsWith(`snooze_${snoozedFriendId}_`))
+  );
+
+  const url = `https://api.telegram.org/bot${botToken}/editMessageText`;
+  await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      message_id: messageId,
+      text: updatedText,
+      parse_mode: "Markdown",
+      reply_markup: { inline_keyboard: updatedKeyboard },
+    }),
+  });
 }
 
 /**
  * Main webhook handler
  */
 export const webhook = onRequest(
-  { secrets: [telegramBotToken, githubToken] },
+  { secrets: [telegramBotToken, telegramChatId, githubToken] },
   async (req, res) => {
     const botToken = telegramBotToken.value();
 
@@ -250,7 +256,11 @@ export const webhook = onRequest(
     // Handle /report command
     if (update.message?.text === "/report" && update.message.chat) {
       try {
-        const statusDoc = await db.collection("status").doc("latest").get();
+        const [statusDoc, friends] = await Promise.all([
+          db.collection("status").doc("latest").get(),
+          getAllFriends(),
+        ]);
+
         if (!statusDoc.exists) {
           await sendTelegramMessage(
             update.message.chat.id,
@@ -259,12 +269,13 @@ export const webhook = onRequest(
           );
         } else {
           const report = statusDoc.data() as StatusReport;
-          const formatted = formatStatusReport(report);
-          await sendTelegramMessage(
-            update.message.chat.id,
-            formatted,
-            botToken
-          );
+          const snoozedIds = await getActiveSnoozedFriendIds();
+          report.friends = report.friends.map((f) => ({
+            ...f,
+            snoozed: snoozedIds.has(f.friend_id),
+          }));
+          const formatted = formatStatusReport(report, friends);
+          await sendTelegramMessage(update.message.chat.id, formatted, botToken);
         }
       } catch (error) {
         console.error("Error handling /report:", error);
@@ -341,9 +352,9 @@ export const webhook = onRequest(
         const daysText = days === 3 ? "3 days" : days === 7 ? "1 week" : "2 weeks";
         await answerCallbackQuery(id, `✅ Snoozed for ${daysText}`, botToken);
 
-        // Remove the snoozed friend's buttons from the message
+        // Rebuild message from live Firestore state
         if (message?.reply_markup?.inline_keyboard) {
-          await removeSnoozeButtonsForFriend(
+          await rebuildMessageAfterSnooze(
             message.chat.id,
             message.message_id,
             friendId,
@@ -362,5 +373,35 @@ export const webhook = onRequest(
       // Not a callback query, just acknowledge
       res.status(200).send("OK");
     }
+  }
+);
+
+/**
+ * Firestore trigger: sends morning Telegram notification when Rust writes should_notify=true
+ */
+export const morningNotification = onDocumentWritten(
+  { document: "status/latest", secrets: [telegramBotToken, telegramChatId] },
+  async (event) => {
+    const data = event.data?.after?.data();
+    if (!data?.should_notify) return;
+
+    const report = data as StatusReport;
+    const [snoozedIds, friends] = await Promise.all([
+      getActiveSnoozedFriendIds(),
+      getAllFriends(),
+    ]);
+    report.friends = report.friends.map((f) => ({
+      ...f,
+      snoozed: snoozedIds.has(f.friend_id),
+    }));
+
+    const text = formatStatusReport(report, friends);
+    const buttons = buildSnoozeButtons(report.friends);
+    await sendTelegramMessageWithButtons(
+      Number(telegramChatId.value()),
+      text,
+      buttons,
+      telegramBotToken.value()
+    );
   }
 );

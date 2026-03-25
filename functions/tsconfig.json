@@ -7,8 +7,10 @@
     "sourceMap": true,
     "strict": true,
     "target": "ES2020",
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "types": ["jest", "node"]
   },
   "compileOnSave": true,
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
 }

@@ -37,6 +37,7 @@ pub struct FriendStatus {
 pub struct StatusReport {
     pub updated_at: DateTime<Utc>,
     pub friends: Vec<FriendStatus>,
+    pub should_notify: bool,
 }
 
 /// Represents a snooze record in Firestore
