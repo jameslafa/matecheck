@@ -16,24 +16,54 @@ pub fn match_by_email(event: &Event, friend: &Friend) -> bool {
         .map_or(false, |email| event.has_attendee(email))
 }
 
+/// Check if `word` appears as a whole word in `text` (case-insensitive).
+///
+/// A "whole word" match requires that the character immediately before and
+/// after the match (if they exist) are both non-alphanumeric.
+fn is_word_match(text: &str, word: &str) -> bool {
+    if word.is_empty() {
+        return false;
+    }
+    let text_lower = text.to_lowercase();
+    let word_lower = word.to_lowercase();
+    let word_len = word_lower.len();
+
+    let mut start = 0;
+    while let Some(pos) = text_lower[start..].find(&*word_lower) {
+        let abs_pos = start + pos;
+        let before_ok = abs_pos == 0
+            || !text_lower[..abs_pos]
+                .chars()
+                .next_back()
+                .map_or(false, |c| c.is_alphanumeric());
+        let after_ok = abs_pos + word_len >= text_lower.len()
+            || !text_lower[abs_pos + word_len..]
+                .chars()
+                .next()
+                .map_or(false, |c| c.is_alphanumeric());
+        if before_ok && after_ok {
+            return true;
+        }
+        start = abs_pos + 1;
+    }
+    false
+}
+
 /// Check if a friend is mentioned in an event title (case-insensitive)
 ///
 /// Checks both the friend's name and any configured aliases.
+/// Uses whole-word matching to avoid false positives (e.g. "Vic" matching "service").
 ///
 /// Example: "Coffee with Alice" matches friend named "Alice"
 /// Example: "Lunch with Lou" matches friend named "Louise" with alias "Lou"
 pub fn match_by_title(event: &Event, friend: &Friend) -> bool {
-    let title_lower = event.title.to_lowercase();
-
     // Check if name matches
-    if title_lower.contains(&friend.name.to_lowercase()) {
+    if is_word_match(&event.title, &friend.name) {
         return true;
     }
 
     // Check if any alias matches
-    friend.aliases.iter().any(|alias| {
-        title_lower.contains(&alias.to_lowercase())
-    })
+    friend.aliases.iter().any(|alias| is_word_match(&event.title, alias))
 }
 
 /// Find all friends who match an event (either by email or title)
@@ -226,6 +256,22 @@ mod tests {
         let event = mock_event("Meeting with Bob", vec![]);
 
         assert!(!match_by_title(&event, &friend));
+    }
+
+    #[test]
+    fn test_match_by_title_no_partial_word_match() {
+        // "Vic" should not match "service"
+        let friend = mock_friend("vic", "Vic", None);
+        let event = mock_event("service", vec![]);
+        assert!(!match_by_title(&event, &friend));
+
+        // But should match when it's a whole word
+        let event2 = mock_event("Lunch with Vic", vec![]);
+        assert!(match_by_title(&event2, &friend));
+
+        // And with delimiters like / or -
+        let event3 = mock_event("Vic/service", vec![]);
+        assert!(match_by_title(&event3, &friend));
     }
 
     #[test]
