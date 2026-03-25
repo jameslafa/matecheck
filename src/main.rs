@@ -294,54 +294,55 @@ async fn main() {
                         }
                     }
 
-                    // Compute and write status report to Firestore
+                    // Compute status for all friends
+                    let last_meetings = matcher::find_last_meetings(&events, &config.friends);
+                    let next_meetings = matcher::find_next_meetings(&events, &config.friends);
+
+                    let friend_statuses: Vec<firestore::types::FriendStatus> = config.friends.iter().map(|friend| {
+                        let last = last_meetings.get(&friend.id).and_then(|e| e.as_ref());
+                        let next = next_meetings.get(&friend.id).and_then(|e| e.as_ref());
+                        let days_since = last.and_then(|e| matcher::days_since(e.start));
+                        let is_snoozed = snoozed_friends.contains(&friend.id);
+
+                        let days_overdue = match days_since {
+                            Some(d) => d - friend.frequency_days as i64,
+                            None => 0,
+                        };
+
+                        let upcoming = matcher::days_until_next_meeting_within_window(next, friend.frequency_days);
+
+                        let status = if upcoming.is_some() {
+                            firestore::types::FriendStatusValue::OnTrack
+                        } else if days_since.is_none() && last.is_none() {
+                            firestore::types::FriendStatusValue::NeverMet
+                        } else if days_overdue > 0 {
+                            firestore::types::FriendStatusValue::Overdue
+                        } else if days_overdue > -(friend.buffer_days() as i64) {
+                            firestore::types::FriendStatusValue::DueSoon
+                        } else {
+                            firestore::types::FriendStatusValue::OnTrack
+                        };
+
+                        firestore::types::FriendStatus {
+                            friend_id: friend.id.clone(),
+                            friend_name: friend.name.clone(),
+                            last_seen_date: last.map(|e| e.start),
+                            last_seen_event: last.map(|e| e.title.clone()),
+                            next_planned_date: next.map(|e| e.start),
+                            next_planned_event: next.map(|e| e.title.clone()),
+                            days_since_last_seen: days_since,
+                            frequency_days: friend.frequency_days,
+                            days_overdue,
+                            status,
+                            snoozed: is_snoozed,
+                        }
+                    }).collect();
+
+                    // Write status report to Firestore
                     if let Some(client) = &firestore {
-                        let last_meetings = matcher::find_last_meetings(&events, &config.friends);
-                        let next_meetings = matcher::find_next_meetings(&events, &config.friends);
-
-                        let friend_statuses: Vec<firestore::types::FriendStatus> = config.friends.iter().map(|friend| {
-                            let last = last_meetings.get(&friend.id).and_then(|e| e.as_ref());
-                            let next = next_meetings.get(&friend.id).and_then(|e| e.as_ref());
-                            let days_since = last.and_then(|e| matcher::days_since(e.start));
-                            let is_snoozed = snoozed_friends.contains(&friend.id);
-
-                            let days_overdue = match days_since {
-                                Some(d) => d - friend.frequency_days as i64,
-                                None => 0,
-                            };
-
-                            let upcoming = matcher::days_until_next_meeting_within_window(next, friend.frequency_days);
-
-                            let status = if upcoming.is_some() {
-                                firestore::types::FriendStatusValue::OnTrack
-                            } else if days_since.is_none() && last.is_none() {
-                                firestore::types::FriendStatusValue::NeverMet
-                            } else if days_overdue > 0 {
-                                firestore::types::FriendStatusValue::Overdue
-                            } else if days_overdue > -(friend.buffer_days() as i64) {
-                                firestore::types::FriendStatusValue::DueSoon
-                            } else {
-                                firestore::types::FriendStatusValue::OnTrack
-                            };
-
-                            firestore::types::FriendStatus {
-                                friend_id: friend.id.clone(),
-                                friend_name: friend.name.clone(),
-                                last_seen_date: last.map(|e| e.start),
-                                last_seen_event: last.map(|e| e.title.clone()),
-                                next_planned_date: next.map(|e| e.start),
-                                next_planned_event: next.map(|e| e.title.clone()),
-                                days_since_last_seen: days_since,
-                                frequency_days: friend.frequency_days,
-                                days_overdue,
-                                status,
-                                snoozed: is_snoozed,
-                            }
-                        }).collect();
-
                         let report = firestore::types::StatusReport {
                             updated_at: Utc::now(),
-                            friends: friend_statuses,
+                            friends: friend_statuses.clone(),
                         };
 
                         match client.status().write_report(&report).await {
@@ -420,7 +421,7 @@ async fn main() {
                             }
                         };
 
-                        let (message, buttons) = telegram::format_reminder_with_buttons(&reminders);
+                        let (message, buttons) = telegram::format_morning_with_buttons(&friend_statuses, &config.friends, &reminders);
                         let telegram_client = telegram::TelegramClient::new(bot_token);
 
                         match telegram_client

@@ -5,4 +5,4 @@ mod client;
 mod formatter;
 
 pub use client::TelegramClient;
-pub use formatter::{format_reminder_message, format_reminder_with_buttons};
+pub use formatter::{format_morning_with_buttons, format_reminder_message};

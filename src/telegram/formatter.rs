@@ -1,4 +1,7 @@
+use crate::config::Friend;
+use crate::firestore::types::{FriendStatus, FriendStatusValue};
 use crate::reminder::ReminderInfo;
+use chrono::Utc;
 use serde::Serialize;
 
 /// Inline keyboard button for Telegram
@@ -16,6 +19,20 @@ pub struct InlineKeyboardButton {
 pub struct InlineKeyboardMarkup {
     /// Grid of buttons (each Vec is a row)
     pub inline_keyboard: Vec<Vec<InlineKeyboardButton>>,
+}
+
+/// Returns a clickable Telegram/WhatsApp link for a friend, or plain name as fallback
+fn friend_link(name: &str, telegram_username: Option<&str>, whatsapp_phone: Option<&str>) -> String {
+    if let Some(username) = telegram_username {
+        if !username.is_empty() {
+            return format!("[{}](https://t.me/{})", name, username);
+        }
+    }
+    if let Some(phone) = whatsapp_phone {
+        let clean = phone.replace('+', "").replace(' ', "");
+        return format!("[{}](https://wa.me/{})", name, clean);
+    }
+    name.to_string()
 }
 
 /// Formats a reminder message for Telegram
@@ -41,25 +58,11 @@ pub fn format_reminder_message(reminders: &[ReminderInfo]) -> String {
             None => "never met".to_string(),
         };
 
-        // Make the friend's name a clickable link
-        // Priority: Telegram username > WhatsApp > plain name
-        let friend_name = if let Some(ref username) = reminder.friend.telegram_username {
-            if !username.is_empty() {
-                format!("[{}](https://t.me/{})", reminder.friend.name, username)
-            } else if let Some(ref phone) = reminder.friend.whatsapp_phone {
-                // Strip + and spaces from phone number for WhatsApp link
-                let clean_phone = phone.replace('+', "").replace(' ', "");
-                format!("[{}](https://wa.me/{})", reminder.friend.name, clean_phone)
-            } else {
-                reminder.friend.name.clone()
-            }
-        } else if let Some(ref phone) = reminder.friend.whatsapp_phone {
-            // Strip + and spaces from phone number for WhatsApp link
-            let clean_phone = phone.replace('+', "").replace(' ', "");
-            format!("[{}](https://wa.me/{})", reminder.friend.name, clean_phone)
-        } else {
-            reminder.friend.name.clone()
-        };
+        let friend_name = friend_link(
+            &reminder.friend.name,
+            reminder.friend.telegram_username.as_deref(),
+            reminder.friend.whatsapp_phone.as_deref(),
+        );
 
         // Single line per friend
         message.push_str(&format!("👤 {} - {}\n", friend_name, last_seen));
@@ -96,25 +99,99 @@ pub fn create_snooze_buttons(friend_name: &str, friend_id: &str) -> Vec<InlineKe
     ]
 }
 
-/// Formats a reminder message with inline snooze buttons
-///
-/// # Arguments
-/// * `reminders` - List of friends needing reminders
-///
-/// # Returns
-/// A tuple of (formatted message text, inline keyboard markup)
-pub fn format_reminder_with_buttons(reminders: &[ReminderInfo]) -> (String, InlineKeyboardMarkup) {
-    let text = format_reminder_message(reminders);
+/// Format a status report message for Telegram (same content as /report),
+/// with friend names as clickable links.
+pub fn format_status_report(statuses: &[FriendStatus], friends: &[Friend]) -> String {
+    let friend_map: std::collections::HashMap<&str, &Friend> =
+        friends.iter().map(|f| (f.id.as_str(), f)).collect();
 
-    // Create button grid: one row per friend with name label
+    let order = |s: &FriendStatusValue| match s {
+        FriendStatusValue::Overdue => 0,
+        FriendStatusValue::DueSoon => 1,
+        FriendStatusValue::OnTrack => 2,
+        FriendStatusValue::NeverMet => 3,
+    };
+
+    let mut sorted: Vec<&FriendStatus> = statuses.iter().collect();
+    sorted.sort_by_key(|f| order(&f.status));
+
+    let overdue = statuses.iter().filter(|f| f.status == FriendStatusValue::Overdue).count();
+    let due_soon = statuses.iter().filter(|f| f.status == FriendStatusValue::DueSoon).count();
+    let on_track = statuses.iter().filter(|f| f.status == FriendStatusValue::OnTrack).count();
+
+    let mut message = format!(
+        "📊 *Friend Status Report*\n🔴 {} overdue · 🟡 {} due soon · 🟢 {} on track\n\n",
+        overdue, due_soon, on_track
+    );
+
+    for f in sorted {
+        let emoji = match f.status {
+            FriendStatusValue::Overdue => "🔴",
+            FriendStatusValue::DueSoon => "🟡",
+            FriendStatusValue::OnTrack => "🟢",
+            FriendStatusValue::NeverMet => "⚪",
+        };
+
+        let name = if let Some(friend) = friend_map.get(f.friend_id.as_str()) {
+            friend_link(
+                &f.friend_name,
+                friend.telegram_username.as_deref(),
+                friend.whatsapp_phone.as_deref(),
+            )
+        } else {
+            f.friend_name.clone()
+        };
+
+        let snoozed = if f.snoozed { " 💤" } else { "" };
+
+        let mut detail = match f.status {
+            FriendStatusValue::NeverMet => "never met".to_string(),
+            _ => match f.days_since_last_seen {
+                Some(days) => {
+                    let mut d = format!("{}d ago", days);
+                    if f.days_overdue > 0 {
+                        d.push_str(&format!(" ({}d overdue)", f.days_overdue));
+                    }
+                    d
+                }
+                None => "no data".to_string(),
+            },
+        };
+
+        if f.next_planned_event.is_some() {
+            if let Some(next_date) = f.next_planned_date {
+                let days_until = (next_date - Utc::now()).num_days();
+                let when = if days_until <= 0 {
+                    "today".to_string()
+                } else if days_until == 1 {
+                    "tomorrow".to_string()
+                } else {
+                    format!("in {}d", days_until)
+                };
+                detail.push_str(&format!(" · 📅 {}", when));
+            }
+        }
+
+        message.push_str(&format!("{} {}: {}{}\n", emoji, name, detail, snoozed));
+    }
+
+    message
+}
+
+/// Format the morning message with status report + snooze buttons for friends needing reminders
+pub fn format_morning_with_buttons(
+    statuses: &[FriendStatus],
+    friends: &[Friend],
+    reminders: &[ReminderInfo],
+) -> (String, InlineKeyboardMarkup) {
+    let text = format_status_report(statuses, friends);
+
     let button_rows: Vec<Vec<InlineKeyboardButton>> = reminders
         .iter()
         .map(|r| create_snooze_buttons(&r.friend.name, &r.friend.id))
         .collect();
 
-    let markup = InlineKeyboardMarkup {
-        inline_keyboard: button_rows,
-    };
+    let markup = InlineKeyboardMarkup { inline_keyboard: button_rows };
 
     (text, markup)
 }
