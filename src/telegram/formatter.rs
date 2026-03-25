@@ -175,6 +175,8 @@ pub fn format_status_report(statuses: &[FriendStatus], friends: &[Friend]) -> St
         message.push_str(&format!("{} {}: {}{}\n", emoji, name, detail, snoozed));
     }
 
+    message.push_str("\n[Dashboard](https://jameslafa.github.io/matecheck/)");
+
     message
 }
 

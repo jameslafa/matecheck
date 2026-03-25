@@ -32,6 +32,9 @@ interface TelegramUpdate {
       chat: {
         id: number;
       };
+      reply_markup?: {
+        inline_keyboard: Array<Array<{ text: string; callback_data: string }>>;
+      };
     };
     data?: string;
   };
@@ -126,32 +129,30 @@ async function answerCallbackQuery(
 }
 
 /**
- * Edit message to add confirmation text (currently unused)
+ * Edit the inline keyboard of an existing message, removing rows for a specific friend
  */
-// async function editMessage(
-//   chatId: number,
-//   messageId: number,
-//   friendName: string,
-//   days: number,
-//   botToken: string
-// ): Promise<void> {
-//
-//   const url = `https://api.telegram.org/bot${botToken}/editMessageReplyMarkup`;
-//
-//   // Remove the buttons by setting empty inline keyboard
-//   await fetch(url, {
-//     method: "POST",
-//     headers: { "Content-Type": "application/json" },
-//     body: JSON.stringify({
-//       chat_id: chatId,
-//       message_id: messageId,
-//       reply_markup: { inline_keyboard: [] },
-//     }),
-//   });
-//
-//   // Note: We're just removing buttons for simplicity
-//   // Could also edit the message text to add "✅ Snoozed X for Y days"
-// }
+async function removeSnoozeButtonsForFriend(
+  chatId: number,
+  messageId: number,
+  snoozedFriendId: string,
+  currentKeyboard: Array<Array<{ text: string; callback_data: string }>>,
+  botToken: string
+): Promise<void> {
+  const updatedKeyboard = currentKeyboard.filter(
+    (row) => !row.some((btn) => btn.callback_data.startsWith(`snooze_${snoozedFriendId}_`))
+  );
+
+  const url = `https://api.telegram.org/bot${botToken}/editMessageReplyMarkup`;
+  await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      message_id: messageId,
+      reply_markup: { inline_keyboard: updatedKeyboard },
+    }),
+  });
+}
 
 /**
  * Send a Telegram message
@@ -308,10 +309,15 @@ export const webhook = onRequest(
         const daysText = days === 3 ? "3 days" : days === 7 ? "1 week" : "2 weeks";
         await answerCallbackQuery(id, `✅ Snoozed for ${daysText}`, botToken);
 
-        // Optionally edit message to show confirmation
-        if (message) {
-          // For now, just log - could enhance to edit message text
-          console.log(`Could edit message ${message.message_id} in chat ${message.chat.id}`);
+        // Remove the snoozed friend's buttons from the message
+        if (message?.reply_markup?.inline_keyboard) {
+          await removeSnoozeButtonsForFriend(
+            message.chat.id,
+            message.message_id,
+            friendId,
+            message.reply_markup.inline_keyboard,
+            botToken
+          );
         }
 
         res.status(200).send("OK");
