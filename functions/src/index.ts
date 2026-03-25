@@ -2,8 +2,8 @@ import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import { defineSecret } from "firebase-functions/params";
 
-// Define secret parameter for Telegram bot token
 const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
+const githubToken = defineSecret("GITHUB_TOKEN");
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -235,7 +235,7 @@ function formatStatusReport(report: StatusReport): string {
  * Main webhook handler
  */
 export const webhook = onRequest(
-  { secrets: [telegramBotToken] },
+  { secrets: [telegramBotToken, githubToken] },
   async (req, res) => {
     const botToken = telegramBotToken.value();
 
@@ -273,6 +273,38 @@ export const webhook = onRequest(
           "❌ Failed to load status report.",
           botToken
         );
+      }
+      res.status(200).send("OK");
+      return;
+    }
+
+    // Handle /update command — triggers the GitHub Actions workflow
+    if (update.message?.text === "/update" && update.message.chat) {
+      const chatId = update.message.chat.id;
+      try {
+        const response = await fetch(
+          "https://api.github.com/repos/jameslafa/matecheck/actions/workflows/daily-check.yml/dispatches",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${githubToken.value()}`,
+              Accept: "application/vnd.github+json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ ref: "master" }),
+          }
+        );
+
+        if (response.status === 204) {
+          await sendTelegramMessage(chatId, "🔄 Update triggered! The check will run in a minute.", botToken);
+        } else {
+          const body = await response.text();
+          console.error("GitHub API error:", response.status, body);
+          await sendTelegramMessage(chatId, "❌ Failed to trigger update.", botToken);
+        }
+      } catch (error) {
+        console.error("Error triggering workflow:", error);
+        await sendTelegramMessage(chatId, "❌ Failed to trigger update.", botToken);
       }
       res.status(200).send("OK");
       return;
