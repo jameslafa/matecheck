@@ -385,6 +385,9 @@ export const morningNotification = onDocumentWritten(
     const data = event.data?.after?.data();
     if (!data?.should_notify) return;
 
+    // Reset flag immediately to prevent re-triggering
+    await db.collection("status").doc("latest").update({ should_notify: false });
+
     const report = data as StatusReport;
     const [snoozedIds, friends] = await Promise.all([
       getActiveSnoozedFriendIds(),
