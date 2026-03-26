@@ -260,42 +260,6 @@ export const webhook = onRequest(
 
     const update: TelegramUpdate = req.body;
 
-    // Handle /report command
-    if (update.message?.text === "/report" && update.message.chat) {
-      try {
-        const [statusDoc, friends] = await Promise.all([
-          db.collection("status").doc("latest").get(),
-          getAllFriends(),
-        ]);
-
-        if (!statusDoc.exists) {
-          await sendTelegramMessage(
-            update.message.chat.id,
-            "No status report available yet. Run the cron job first.",
-            botToken
-          );
-        } else {
-          const report = statusDoc.data() as StatusReport;
-          const snoozedIds = await getActiveSnoozedFriendIds();
-          report.friends = report.friends.map((f) => ({
-            ...f,
-            snoozed: snoozedIds.has(f.friend_id),
-          }));
-          const formatted = formatStatusReport(report, friends);
-          await sendTelegramMessage(update.message.chat.id, formatted, botToken);
-        }
-      } catch (error) {
-        console.error("Error handling /report:", error);
-        await sendTelegramMessage(
-          update.message.chat.id,
-          "❌ Failed to load status report.",
-          botToken
-        );
-      }
-      res.status(200).send("OK");
-      return;
-    }
-
     // Handle /update command — triggers the GitHub Actions workflow
     if (update.message?.text === "/update" && update.message.chat) {
       const chatId = update.message.chat.id;

@@ -44,7 +44,6 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
   - Fail-open design (works even if Firebase is unavailable)
 - **Status Report** - Full overview of where you stand with all friends
   - Stored as a single Firestore document, updated each cron run
-  - Send `/report` to your Telegram bot for a formatted summary
   - View in the web UI with color-coded status badges
   - Statuses: on track, due soon, overdue, never met
 - **Do Not Disturb Mode** - Automatically pauses ALL reminders during specific periods
@@ -58,6 +57,12 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
 - **Telegram Integration** - Sends formatted reminders with clickable links
 - **WhatsApp Support** - Creates WhatsApp deep links for friends without Telegram
 - **Smart Fallback** - Telegram username → WhatsApp → plain name
+
+### Telegram Bot Commands
+
+- `update` - Trigger a data refresh
+- `snooze` - Snooze a friend for x days
+- `unsnooze` - Remove a snooze for a friend
 
 ### Automation
 
@@ -107,7 +112,8 @@ matecheck/
 │   └── SETUP.md             # Deployment guide
 ├── functions/               # Firebase Cloud Functions (TypeScript)
 │   ├── src/
-│   │   └── index.ts         # Webhook handler for buttons + /report command
+│   │   ├── index.ts         # Webhook handler (Telegram commands + button callbacks) + Firestore trigger
+│   │   └── formatter.ts     # Status report formatting, snooze/unsnooze buttons, friend lookup
 │   ├── package.json
 │   └── tsconfig.json
 ├── .github/
@@ -268,11 +274,38 @@ friends:
 - `aliases` (optional) - Alternative names for calendar matching
 - `frequency_days` (required) - How often you want to meet (in days)
 
+## Architecture
+
+The system is split across two runtimes:
+
+### Rust (runs daily via GitHub Actions)
+- Reads friend config from Firestore (falls back to `friends.yaml`)
+- Reads active snoozes from Firestore
+- Fetches Google Calendar events (last 90 days + future)
+- Matches events to friends, computes statuses (`on_track`, `due_soon`, `overdue`, `never_met`)
+- Writes the full status report to Firestore (`status/latest`) with `should_notify: true`
+- Does **not** send Telegram messages directly
+
+### Firebase Cloud Functions (TypeScript, always-on)
+- **`morningNotification` trigger** — fires when Rust writes `should_notify: true` to `status/latest`; formats and sends the Telegram message with snooze buttons
+- **`webhook`** — receives Telegram updates:
+  - `/update` — triggers the GitHub Actions workflow via API
+  - `/unsnooze <name>` — removes a snooze from Firestore (matches by id, name, or alias)
+  - Inline button callbacks — writes snooze to Firestore, edits the message
+
+### Formatting (TypeScript `formatter.ts`)
+All status report formatting lives in `formatter.ts`, not in Rust. This includes:
+- 4-bucket grouping: Already planned / Need to catch up / Schedule soon / On track
+- Berlin-time timestamp header
+- Friend line format (last seen, next planned, event names truncated at 50 chars)
+- Snooze button builder (excludes already-planned and snoozed friends)
+- Friend lookup by id, name, or alias (case-insensitive)
+
 ## How It Works
 
 1. **Loads Active Snoozes** - Queries Firestore for snoozed friends (fail-open if unavailable)
 2. **Fetches Calendar Events** - Gets events from last 90 days + future events
-3. **Writes Status Report** - Computes and stores friend status snapshot in Firestore
+3. **Writes Status Report** - Computes and stores friend status snapshot in Firestore with `should_notify: true`
 4. **Checks Do Not Disturb** - Exits early if DND event detected (skips all reminders)
 5. **Matches Friends** - Identifies which events involved which friends
 6. **Calculates Last Meeting** - Finds most recent past meeting per friend
@@ -282,8 +315,8 @@ friends:
    - Reminds at 85% of target frequency (15% buffer)
    - Skips reminder if meeting already scheduled
    - Ignores recurring events (birthdays)
-9. **Sends Telegram Message** - Formatted list with inline snooze buttons
-10. **Button Callback** - Cloud Function handles button clicks, updates Firestore
+9. **Firestore Trigger Fires** - Cloud Function detects `should_notify: true`, formats the report in TypeScript, sends Telegram message with inline snooze buttons
+10. **Button Callback** - Cloud Function handles button clicks, writes snooze to Firestore, edits the message
 
 ## Development
 
