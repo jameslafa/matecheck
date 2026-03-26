@@ -2,7 +2,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 import { defineSecret } from "firebase-functions/params";
-import { StatusReport, FriendConfig, formatStatusReport, buildSnoozeButtons, findFriend } from "./formatter";
+import { StatusReport, FriendConfig, formatStatusReport, findFriend } from "./formatter";
 
 const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
 const telegramChatId = defineSecret("TELEGRAM_CHAT_ID");
@@ -44,31 +44,6 @@ interface TelegramUpdate {
   };
 }
 
-interface SnoozeData {
-  friendId: string;
-  days: number;
-}
-
-/**
- * Parse snooze callback data
- * Format: "snooze_alice_7" -> { friendId: "alice", days: 7 }
- */
-function parseSnoozeData(data: string): SnoozeData | null {
-  const parts = data.split("_");
-  if (parts.length !== 3 || parts[0] !== "snooze") {
-    return null;
-  }
-
-  const friendId = parts[1];
-  const days = parseInt(parts[2], 10);
-
-  if (isNaN(days) || days <= 0) {
-    return null;
-  }
-
-  return { friendId, days };
-}
-
 /**
  * Update Firestore with snooze
  */
@@ -94,16 +69,19 @@ async function unsnoozeFriend(friendId: string): Promise<void> {
 }
 
 /**
- * Get IDs of all currently snoozed friends
+ * Get active snoozes as a map of friendId → snoozed_until ISO string
  */
-async function getActiveSnoozedFriendIds(): Promise<Set<string>> {
+async function getActiveSnoozedFriends(): Promise<Map<string, string>> {
   const now = admin.firestore.Timestamp.now();
   const snapshot = await db.collection("snoozes")
     .where("snoozed_until", ">", now)
     .get();
-  const ids = new Set<string>();
-  snapshot.forEach((doc) => ids.add(doc.data().friend_id));
-  return ids;
+  const map = new Map<string, string>();
+  snapshot.forEach((doc) => {
+    const data = doc.data();
+    map.set(data.friend_id, (data.snoozed_until as admin.firestore.Timestamp).toDate().toISOString());
+  });
+  return map;
 }
 
 /**
@@ -115,66 +93,13 @@ async function getAllFriends(): Promise<FriendConfig[]> {
 }
 
 /**
- * Answer Telegram callback query (dismisses loading spinner)
- */
-async function answerCallbackQuery(
-  callbackQueryId: string,
-  text: string,
-  botToken: string
-): Promise<void> {
-  const url = `https://api.telegram.org/bot${botToken}/answerCallbackQuery`;
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      callback_query_id: callbackQueryId,
-      text,
-      show_alert: false,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.error("Failed to answer callback query:", error);
-  }
-}
-
-/**
- * Send a Telegram message
+ * Send a Telegram message, returns the message_id on success
  */
 async function sendTelegramMessage(
   chatId: number,
   text: string,
   botToken: string
-): Promise<void> {
-  const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: "Markdown",
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.error("Failed to send message:", error);
-  }
-}
-
-/**
- * Send a Telegram message with inline keyboard buttons
- */
-async function sendTelegramMessageWithButtons(
-  chatId: number,
-  text: string,
-  buttons: Array<Array<{ text: string; callback_data: string }>>,
-  botToken: string
-): Promise<void> {
+): Promise<number | null> {
   const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
 
   const response = await fetch(url, {
@@ -185,63 +110,73 @@ async function sendTelegramMessageWithButtons(
       text,
       parse_mode: "Markdown",
       link_preview_options: { is_disabled: true },
-      reply_markup: { inline_keyboard: buttons },
     }),
   });
 
   if (!response.ok) {
     const error = await response.text();
-    console.error("Failed to send message with buttons:", error);
+    console.error("Failed to send message:", error);
+    return null;
   }
+
+  const json = await response.json();
+  return json.result?.message_id ?? null;
 }
 
 /**
- * Rebuild the morning message from live Firestore state after a snooze.
- * Reads the current status report, active snoozes, and friend configs,
- * then edits the message with accurate content and the updated keyboard.
+ * Edit an existing Telegram message
  */
-async function rebuildMessageAfterSnooze(
+async function editTelegramMessage(
   chatId: number,
   messageId: number,
-  snoozedFriendId: string,
-  currentKeyboard: Array<Array<{ text: string; callback_data: string }>>,
+  text: string,
   botToken: string
 ): Promise<void> {
-  const [statusDoc, snoozedIds, friends] = await Promise.all([
-    db.collection("status").doc("latest").get(),
-    getActiveSnoozedFriendIds(),
-    getAllFriends(),
-  ]);
-
-  if (!statusDoc.exists) return;
-
-  const report = statusDoc.data() as StatusReport;
-
-  // Update snoozed flags from current live snooze state
-  report.friends = report.friends.map((f) => ({
-    ...f,
-    snoozed: snoozedIds.has(f.friend_id),
-  }));
-
-  const updatedText = formatStatusReport(report, friends);
-
-  // Remove the snoozed friend's button row
-  const updatedKeyboard = currentKeyboard.filter(
-    (row) => !row.some((btn) => btn.callback_data.startsWith(`snooze_${snoozedFriendId}_`))
-  );
-
   const url = `https://api.telegram.org/bot${botToken}/editMessageText`;
-  await fetch(url, {
+
+  const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: chatId,
       message_id: messageId,
-      text: updatedText,
+      text,
       parse_mode: "Markdown",
-      reply_markup: { inline_keyboard: updatedKeyboard },
+      link_preview_options: { is_disabled: true },
     }),
   });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("Failed to edit message:", error);
+  }
+}
+
+/**
+ * Rebuild and edit the last morning notification from current Firestore state.
+ * Silently does nothing if no message_id is stored.
+ */
+async function editNotification(chatId: number, botToken: string): Promise<void> {
+  const [statusDoc, snoozedFriends, friends] = await Promise.all([
+    db.collection("status").doc("latest").get(),
+    getActiveSnoozedFriends(),
+    getAllFriends(),
+  ]);
+
+  if (!statusDoc.exists) return;
+
+  const messageId = statusDoc.data()?.last_notification_message_id;
+  if (!messageId) return;
+
+  const report = statusDoc.data() as StatusReport;
+  report.friends = report.friends.map((f) => ({
+    ...f,
+    snoozed: snoozedFriends.has(f.friend_id),
+    snoozed_until: snoozedFriends.get(f.friend_id),
+  }));
+
+  const text = formatStatusReport(report, friends);
+  await editTelegramMessage(chatId, messageId, text, botToken);
 }
 
 /**
@@ -314,7 +249,10 @@ export const webhook = onRequest(
         }
 
         await unsnoozeFriend(friend.id);
-        await sendTelegramMessage(chatId, `✅ Snooze removed for ${friend.name}`, botToken);
+        await Promise.all([
+          sendTelegramMessage(chatId, `✅ Snooze removed for ${friend.name}`, botToken),
+          editNotification(Number(telegramChatId.value()), botToken),
+        ]);
       } catch (error) {
         console.error("Error handling /unsnooze:", error);
         await sendTelegramMessage(chatId, "❌ Failed to remove snooze.", botToken);
@@ -324,58 +262,51 @@ export const webhook = onRequest(
       return;
     }
 
-    // Handle callback queries (button clicks)
-    if (update.callback_query) {
-      const { id, data, from, message } = update.callback_query;
+    // Handle /snooze command
+    if (update.message?.text?.startsWith("/snooze") && update.message.chat) {
+      const chatId = update.message.chat.id;
+      const parts = update.message.text.replace("/snooze", "").trim().split(/\s+/);
 
-      if (!data) {
+      if (parts.length < 2 || !parts[0]) {
+        await sendTelegramMessage(chatId, "Usage: /snooze <name> <days>", botToken);
         res.status(200).send("OK");
         return;
       }
 
-      console.log(`Callback from ${from.first_name}: ${data}`);
+      const days = parseInt(parts[parts.length - 1], 10);
+      const nameQuery = parts.slice(0, -1).join(" ");
 
-      // Parse snooze data
-      const snoozeData = parseSnoozeData(data);
-      if (!snoozeData) {
-        console.error(`Invalid callback data: ${data}`);
-        await answerCallbackQuery(id, "❌ Invalid action", botToken);
+      if (isNaN(days) || days <= 0) {
+        await sendTelegramMessage(chatId, "Usage: /snooze <name> <days>", botToken);
         res.status(200).send("OK");
         return;
       }
-
-      const { friendId, days } = snoozeData;
 
       try {
-        // Update Firestore
-        await snoozeFriend(friendId, days);
-        console.log(`Snoozed ${friendId} for ${days} days`);
+        const friends = await getAllFriends();
+        const friend = findFriend(nameQuery, friends);
 
-        // Answer callback query (dismisses spinner)
-        const daysText = days === 3 ? "3 days" : days === 7 ? "1 week" : "2 weeks";
-        await answerCallbackQuery(id, `✅ Snoozed for ${daysText}`, botToken);
-
-        // Rebuild message from live Firestore state
-        if (message?.reply_markup?.inline_keyboard) {
-          await rebuildMessageAfterSnooze(
-            message.chat.id,
-            message.message_id,
-            friendId,
-            message.reply_markup.inline_keyboard,
-            botToken
-          );
+        if (!friend) {
+          await sendTelegramMessage(chatId, `❌ Friend not found: "${nameQuery}"`, botToken);
+          res.status(200).send("OK");
+          return;
         }
 
-        res.status(200).send("OK");
+        await snoozeFriend(friend.id, days);
+        await Promise.all([
+          sendTelegramMessage(chatId, `✅ ${friend.name} snoozed for ${days} days`, botToken),
+          editNotification(Number(telegramChatId.value()), botToken),
+        ]);
       } catch (error) {
-        console.error("Error processing snooze:", error);
-        await answerCallbackQuery(id, "❌ Error - try again", botToken);
-        res.status(500).send("Error");
+        console.error("Error handling /snooze:", error);
+        await sendTelegramMessage(chatId, "❌ Failed to snooze.", botToken);
       }
-    } else {
-      // Not a callback query, just acknowledge
+
       res.status(200).send("OK");
+      return;
     }
+
+    res.status(200).send("OK");
   }
 );
 
@@ -392,22 +323,25 @@ export const morningNotification = onDocumentWritten(
     await db.collection("status").doc("latest").update({ should_notify: false });
 
     const report = data as StatusReport;
-    const [snoozedIds, friends] = await Promise.all([
-      getActiveSnoozedFriendIds(),
+    const [snoozedFriends, friends] = await Promise.all([
+      getActiveSnoozedFriends(),
       getAllFriends(),
     ]);
     report.friends = report.friends.map((f) => ({
       ...f,
-      snoozed: snoozedIds.has(f.friend_id),
+      snoozed: snoozedFriends.has(f.friend_id),
+      snoozed_until: snoozedFriends.get(f.friend_id),
     }));
 
     const text = formatStatusReport(report, friends);
-    const buttons = buildSnoozeButtons(report.friends);
-    await sendTelegramMessageWithButtons(
+    const messageId = await sendTelegramMessage(
       Number(telegramChatId.value()),
       text,
-      buttons,
       telegramBotToken.value()
     );
+
+    if (messageId) {
+      await db.collection("status").doc("latest").update({ last_notification_message_id: messageId });
+    }
   }
 );

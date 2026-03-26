@@ -1,4 +1,4 @@
-import { friendLink, formatStatusReport, buildSnoozeButtons, findFriend, FriendStatus, StatusReport, FriendConfig } from "./formatter";
+import { friendLink, formatStatusReport, findFriend, FriendStatus, StatusReport, FriendConfig } from "./formatter";
 
 const friends: FriendConfig[] = [
   { id: "alice", name: "Alice", telegram_username: "alice_tg" },
@@ -79,10 +79,10 @@ test("formatStatusReport: never_met appears under Need to catch up", () => {
   expect(text).toContain("🔴 Charlie: never met");
 });
 
-test("formatStatusReport: overdue shows days and overdue count", () => {
+test("formatStatusReport: overdue shows days ago and late count", () => {
   const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "overdue", days_since_last_seen: 45, days_overdue: 15 })]);
   const text = formatStatusReport(report, friends);
-  expect(text).toContain("🔴 [Alice](https://t.me/alice_tg): 45d ago (15d overdue)");
+  expect(text).toContain("🔴 [Alice](https://t.me/alice_tg): 45d ago · 15d late");
 });
 
 test("formatStatusReport: on_track no overdue suffix", () => {
@@ -101,14 +101,22 @@ test("formatStatusReport: friend with next_planned_date goes to Already planned 
   })]);
   const text = formatStatusReport(report, friends);
   expect(text).toContain("*📅 Already planned*");
-  expect(text).toContain("📅 [Alice](https://t.me/alice_tg): in 3d · Coffee");
+  expect(text).toContain("📅 [Alice](https://t.me/alice_tg): in 3d");
   expect(text).not.toContain("*🟢 On track*");
 });
 
-test("formatStatusReport: snoozed shows 💤", () => {
+test("formatStatusReport: snoozed with expiry shows until date", () => {
+  const until = "2026-04-02T12:00:00Z";
+  const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "overdue", days_since_last_seen: 40, days_overdue: 10, snoozed: true, snoozed_until: until })]);
+  const text = formatStatusReport(report, friends);
+  expect(text).toContain("💤 until 2 Apr");
+});
+
+test("formatStatusReport: snoozed without expiry shows plain 💤", () => {
   const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "overdue", days_since_last_seen: 40, days_overdue: 10, snoozed: true })]);
   const text = formatStatusReport(report, friends);
-  expect(text).toContain("💤");
+  expect(text).toContain(" 💤");
+  expect(text).not.toContain("until");
 });
 
 test("formatStatusReport: bucket order is planned, catch-up, soon, on-track", () => {
@@ -144,14 +152,6 @@ test("formatStatusReport: header has Berlin timestamp", () => {
   expect(text).toContain("25 Mar 2026 at 09:00");
 });
 
-test("formatStatusReport: event name truncated to 50 chars", () => {
-  const longEvent = "A".repeat(55);
-  const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "overdue", days_since_last_seen: 40, days_overdue: 10, last_seen_event: longEvent })]);
-  const text = formatStatusReport(report, friends);
-  expect(text).toContain("A".repeat(50) + "…");
-  expect(text).not.toContain("A".repeat(51));
-});
-
 test("formatStatusReport: due_soon without plan goes to Schedule soon bucket", () => {
   const report = makeReport([makeStatus({ friend_id: "bob", friend_name: "Bob", status: "due_soon", days_since_last_seen: 20 })]);
   const text = formatStatusReport(report, friends);
@@ -161,22 +161,16 @@ test("formatStatusReport: due_soon without plan goes to Schedule soon bucket", (
 
 test("formatStatusReport: planned shows 'today' when daysUntil <= 0", () => {
   const pastDate = new Date(Date.now() - 1 * 864e5).toISOString();
-  const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "on_track", next_planned_date: pastDate, next_planned_event: "Coffee" })]);
+  const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "on_track", next_planned_date: pastDate })]);
   const text = formatStatusReport(report, friends);
-  expect(text).toContain("📅 [Alice](https://t.me/alice_tg): today · Coffee");
+  expect(text).toContain("📅 [Alice](https://t.me/alice_tg): today");
 });
 
 test("formatStatusReport: planned shows 'tomorrow' when daysUntil is 1", () => {
   const tomorrow = new Date(Date.now() + 1.2 * 864e5).toISOString();
-  const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "on_track", next_planned_date: tomorrow, next_planned_event: "Dinner" })]);
+  const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "on_track", next_planned_date: tomorrow })]);
   const text = formatStatusReport(report, friends);
-  expect(text).toContain("📅 [Alice](https://t.me/alice_tg): tomorrow · Dinner");
-});
-
-test("formatStatusReport: last_seen_event appended on non-planned line", () => {
-  const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "overdue", days_since_last_seen: 45, days_overdue: 15, last_seen_event: "Coffee" })]);
-  const text = formatStatusReport(report, friends);
-  expect(text).toContain("🔴 [Alice](https://t.me/alice_tg): 45d ago (15d overdue) · Coffee");
+  expect(text).toContain("📅 [Alice](https://t.me/alice_tg): tomorrow");
 });
 
 test("formatStatusReport: no data when days_since_last_seen absent on non-never_met", () => {
@@ -185,43 +179,3 @@ test("formatStatusReport: no data when days_since_last_seen absent on non-never_
   expect(text).toContain("🔴 [Alice](https://t.me/alice_tg): no data");
 });
 
-// --- buildSnoozeButtons ---
-
-test("buildSnoozeButtons: includes overdue non-snoozed friends", () => {
-  const statuses = [makeStatus({ friend_id: "alice", friend_name: "Alice", status: "overdue" })];
-  const buttons = buildSnoozeButtons(statuses);
-  expect(buttons).toHaveLength(1);
-  expect(buttons[0]).toHaveLength(3);
-  expect(buttons[0][0]).toEqual({ text: "Alice: 3d", callback_data: "snooze_alice_3" });
-  expect(buttons[0][1]).toEqual({ text: "Alice: 1w", callback_data: "snooze_alice_7" });
-  expect(buttons[0][2]).toEqual({ text: "Alice: 2w", callback_data: "snooze_alice_14" });
-});
-
-test("buildSnoozeButtons: excludes on_track friends", () => {
-  const statuses = [makeStatus({ friend_id: "alice", friend_name: "Alice", status: "on_track" })];
-  expect(buildSnoozeButtons(statuses)).toHaveLength(0);
-});
-
-test("buildSnoozeButtons: excludes snoozed friends", () => {
-  const statuses = [makeStatus({ friend_id: "alice", friend_name: "Alice", status: "overdue", snoozed: true })];
-  expect(buildSnoozeButtons(statuses)).toHaveLength(0);
-});
-
-test("buildSnoozeButtons: includes never_met and due_soon", () => {
-  const statuses = [
-    makeStatus({ friend_id: "alice", friend_name: "Alice", status: "never_met" }),
-    makeStatus({ friend_id: "bob", friend_name: "Bob", status: "due_soon" }),
-  ];
-  expect(buildSnoozeButtons(statuses)).toHaveLength(2);
-});
-
-test("buildSnoozeButtons: excludes friends with next_planned_date", () => {
-  const futureDate = new Date(Date.now() + 5 * 864e5).toISOString();
-  const statuses = [
-    makeStatus({ friend_id: "alice", friend_name: "Alice", status: "overdue", next_planned_date: futureDate }),
-    makeStatus({ friend_id: "bob", friend_name: "Bob", status: "overdue" }),
-  ];
-  const buttons = buildSnoozeButtons(statuses);
-  expect(buttons).toHaveLength(1);
-  expect(buttons[0][0].callback_data).toContain("bob");
-});

@@ -10,6 +10,7 @@ export interface FriendStatus {
   days_overdue: number;
   status: "on_track" | "due_soon" | "overdue" | "never_met";
   snoozed: boolean;
+  snoozed_until?: string;
 }
 
 export interface StatusReport {
@@ -68,8 +69,17 @@ function formatBerlinTime(isoString: string): string {
   return `${get("weekday")} ${get("day")} ${get("month")} ${get("year")} at ${get("hour")}:${get("minute")}`;
 }
 
-function truncate(s: string, max = 50): string {
-  return s.length > max ? s.slice(0, max) + "…" : s;
+function formatShortDate(isoString: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    timeZone: "Europe/Berlin",
+  }).format(new Date(isoString));
+}
+
+function snoozeLabel(f: FriendStatus): string {
+  if (!f.snoozed) return "";
+  return f.snoozed_until ? ` 💤 until ${formatShortDate(f.snoozed_until)}` : " 💤";
 }
 
 /**
@@ -92,29 +102,25 @@ export function formatStatusReport(report: StatusReport, friends: FriendConfig[]
 
   const renderPlanned = (f: FriendStatus) => {
     const name = getName(f);
-    const snoozed = f.snoozed ? " 💤" : "";
     const daysUntil = Math.round((new Date(f.next_planned_date!).getTime() - Date.now()) / 864e5);
     const when = daysUntil <= 0 ? "today" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil}d`;
-    const eventPart = f.next_planned_event ? ` · ${truncate(f.next_planned_event)}` : "";
-    return `📅 ${name}: ${when}${eventPart}${snoozed}`;
+    return `📅 ${name}: ${when}${snoozeLabel(f)}`;
   };
 
   const renderOther = (f: FriendStatus, emoji: string) => {
     const name = getName(f);
-    const snoozed = f.snoozed ? " 💤" : "";
     let detail: string;
     if (f.status === "never_met") {
       detail = "never met";
     } else if (f.days_since_last_seen != null) {
       detail = `${f.days_since_last_seen}d ago`;
       if (f.days_overdue > 0) {
-        detail += ` (${f.days_overdue}d overdue)`;
+        detail += ` · ${f.days_overdue}d late`;
       }
     } else {
       detail = "no data";
     }
-    const eventPart = f.last_seen_event ? ` · ${truncate(f.last_seen_event)}` : "";
-    return `${emoji} ${name}: ${detail}${eventPart}${snoozed}`;
+    return `${emoji} ${name}: ${detail}${snoozeLabel(f)}`;
   };
 
   const sections: string[] = [];
@@ -135,24 +141,4 @@ export function formatStatusReport(report: StatusReport, friends: FriendConfig[]
   const header = `📊 *Friend Status Report*\n🕐 ${formatBerlinTime(report.updated_at)}`;
 
   return header + "\n\n" + sections.join("\n\n") + "\n\n[Dashboard](https://jameslafa.github.io/matecheck/)";
-}
-
-/**
- * Build snooze button rows for friends needing reminders who aren't snoozed.
- */
-export function buildSnoozeButtons(
-  friends: FriendStatus[]
-): Array<Array<{ text: string; callback_data: string }>> {
-  return friends
-    .filter(
-      (f) =>
-        !f.snoozed &&
-        !f.next_planned_date &&
-        (f.status === "overdue" || f.status === "due_soon" || f.status === "never_met")
-    )
-    .map((f) => [
-      { text: `${f.friend_name}: 3d`, callback_data: `snooze_${f.friend_id}_3` },
-      { text: `${f.friend_name}: 1w`, callback_data: `snooze_${f.friend_id}_7` },
-      { text: `${f.friend_name}: 2w`, callback_data: `snooze_${f.friend_id}_14` },
-    ]);
 }

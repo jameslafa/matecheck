@@ -45,6 +45,13 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Cache release binary
+        id: cache-binary
+        uses: actions/cache@v4
+        with:
+          path: target/release/matecheck
+          key: binary-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'src/**/*.rs') }}
+
       - name: Create credentials.json from secret
         run: |
           echo '${{ secrets.GOOGLE_CREDENTIALS }}' > credentials.json
@@ -74,6 +81,7 @@ jobs:
           chmod 600 .env
 
       - name: Build release binary
+        if: steps.cache-binary.outputs.cache-hit != 'true'
         run: cargo build --release
 
       - name: Run reminder check
