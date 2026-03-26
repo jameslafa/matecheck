@@ -39,33 +39,56 @@ export function friendLink(name: string, telegramUsername?: string, whatsappPhon
   return name;
 }
 
+function formatBerlinTime(isoString: string): string {
+  const date = new Date(isoString);
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Berlin",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("weekday")} ${get("day")} ${get("month")} ${get("year")} at ${get("hour")}:${get("minute")}`;
+}
+
+function truncate(s: string, max = 50): string {
+  return s.length > max ? s.slice(0, max) + "…" : s;
+}
+
 /**
  * Format status report for Telegram, with friend names as clickable links.
  */
 export function formatStatusReport(report: StatusReport, friends: FriendConfig[]): string {
   const friendMap = new Map(friends.map((f) => [f.id, f]));
 
-  const statusEmoji: Record<string, string> = {
-    overdue: "🔴",
-    due_soon: "🟡",
-    on_track: "🟢",
-    never_met: "⚪",
+  const getName = (f: FriendStatus) => {
+    const fc = friendMap.get(f.friend_id);
+    return fc ? friendLink(f.friend_name, fc.telegram_username, fc.whatsapp_phone) : f.friend_name;
   };
 
-  const order = ["overdue", "due_soon", "on_track", "never_met"];
-  const sorted = [...report.friends].sort(
-    (a, b) => order.indexOf(a.status) - order.indexOf(b.status)
-  );
+  const byFreq = (a: FriendStatus, b: FriendStatus) => a.frequency_days - b.frequency_days;
 
-  const lines = sorted.map((f) => {
-    const emoji = statusEmoji[f.status] || "⚪";
+  const planned = report.friends.filter((f) => f.next_planned_date).sort(byFreq);
+  const catchUp = report.friends.filter((f) => !f.next_planned_date && (f.status === "overdue" || f.status === "never_met")).sort(byFreq);
+  const soon = report.friends.filter((f) => !f.next_planned_date && f.status === "due_soon").sort(byFreq);
+  const onTrack = report.friends.filter((f) => !f.next_planned_date && f.status === "on_track").sort(byFreq);
+
+  const renderPlanned = (f: FriendStatus) => {
+    const name = getName(f);
     const snoozed = f.snoozed ? " 💤" : "";
+    const daysUntil = Math.round((new Date(f.next_planned_date!).getTime() - Date.now()) / 864e5);
+    const when = daysUntil <= 0 ? "today" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil}d`;
+    const eventPart = f.next_planned_event ? ` · ${truncate(f.next_planned_event)}` : "";
+    return `📅 ${name}: ${when}${eventPart}${snoozed}`;
+  };
 
-    const fc = friendMap.get(f.friend_id);
-    const name = fc
-      ? friendLink(f.friend_name, fc.telegram_username, fc.whatsapp_phone)
-      : f.friend_name;
-
+  const renderOther = (f: FriendStatus, emoji: string) => {
+    const name = getName(f);
+    const snoozed = f.snoozed ? " 💤" : "";
     let detail: string;
     if (f.status === "never_met") {
       detail = "never met";
@@ -77,23 +100,28 @@ export function formatStatusReport(report: StatusReport, friends: FriendConfig[]
     } else {
       detail = "no data";
     }
+    const eventPart = f.last_seen_event ? ` · ${truncate(f.last_seen_event)}` : "";
+    return `${emoji} ${name}: ${detail}${eventPart}${snoozed}`;
+  };
 
-    if (f.next_planned_event) {
-      const daysUntil = Math.round((new Date(f.next_planned_date!).getTime() - Date.now()) / 864e5);
-      const when = daysUntil <= 0 ? "today" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil}d`;
-      detail += ` · 📅 ${when}`;
-    }
+  const sections: string[] = [];
 
-    return `${emoji} ${name}: ${detail}${snoozed}`;
-  });
+  if (planned.length > 0) {
+    sections.push("*📅 Already planned*\n" + planned.map(renderPlanned).join("\n"));
+  }
+  if (catchUp.length > 0) {
+    sections.push("*🔴 Need to catch up*\n" + catchUp.map((f) => renderOther(f, "🔴")).join("\n"));
+  }
+  if (soon.length > 0) {
+    sections.push("*🟡 Schedule soon*\n" + soon.map((f) => renderOther(f, "🟡")).join("\n"));
+  }
+  if (onTrack.length > 0) {
+    sections.push("*🟢 On track*\n" + onTrack.map((f) => renderOther(f, "🟢")).join("\n"));
+  }
 
-  const overdue = report.friends.filter((f) => f.status === "overdue").length;
-  const dueSoon = report.friends.filter((f) => f.status === "due_soon").length;
-  const onTrack = report.friends.filter((f) => f.status === "on_track").length;
+  const header = `📊 *Friend Status Report*\n🕐 ${formatBerlinTime(report.updated_at)}`;
 
-  const header = `📊 *Friend Status Report*\n🔴 ${overdue} overdue · 🟡 ${dueSoon} due soon · 🟢 ${onTrack} on track\n`;
-
-  return header + "\n" + lines.join("\n") + "\n\n[Dashboard](https://jameslafa.github.io/matecheck/)";
+  return header + "\n\n" + sections.join("\n\n") + "\n\n[Dashboard](https://jameslafa.github.io/matecheck/)";
 }
 
 /**
@@ -106,6 +134,7 @@ export function buildSnoozeButtons(
     .filter(
       (f) =>
         !f.snoozed &&
+        !f.next_planned_date &&
         (f.status === "overdue" || f.status === "due_soon" || f.status === "never_met")
     )
     .map((f) => [
