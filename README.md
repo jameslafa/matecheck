@@ -38,8 +38,8 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
   - 45 days → remind at day 38 (7 days early)
 - **Future Meeting Awareness** - Skips reminders if meeting already scheduled
 - **Friend Aliases** - Match calendar events with nicknames (e.g., "Lou" matches "Louise")
-- **Snooze Functionality** ⭐ NEW - Temporarily pause reminders for specific friends
-  - Click inline buttons in Telegram: 3 days, 1 week, or 2 weeks
+- **Snooze Functionality** - Temporarily pause reminders for specific friends
+  - Use `/snooze <name> <days>` and `/unsnooze <name>` commands in Telegram
   - Powered by Firebase Firestore + Cloud Functions
   - Fail-open design (works even if Firebase is unavailable)
 - **Status Report** - Full overview of where you stand with all friends
@@ -76,7 +76,7 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
 - **Language:** Rust 🦀 (2021 edition) + TypeScript (Cloud Functions)
 - **APIs:** Google Calendar API v3, Telegram Bot API
 - **Database:** Firebase Firestore (state persistence + config storage)
-- **Backend:** Firebase Cloud Functions (webhook for button callbacks)
+- **Backend:** Firebase Cloud Functions (webhook for Telegram commands + Firestore trigger)
 - **Frontend:** Vanilla JavaScript + Firebase SDK (web UI)
 - **Key Crates:** tokio, serde, chrono, clap, reqwest, firestore
 - **Auth:** OAuth 2.0 for Google Calendar, Firebase Service Account, Google Sign-In (web UI)
@@ -105,15 +105,15 @@ matecheck/
 │   │   └── engine.rs        # Reminder calculation logic
 │   └── telegram/            # Telegram integration
 │       ├── client.rs        # Bot API client
-│       └── formatter.rs     # Message formatting + inline buttons
+│       └── formatter.rs     # Message formatting
 ├── docs/                    # Web UI (GitHub Pages)
 │   ├── index.html           # Friends management interface
 │   ├── README.md            # Web UI setup instructions
 │   └── SETUP.md             # Deployment guide
 ├── functions/               # Firebase Cloud Functions (TypeScript)
 │   ├── src/
-│   │   ├── index.ts         # Webhook handler (Telegram commands + button callbacks) + Firestore trigger
-│   │   └── formatter.ts     # Status report formatting, snooze/unsnooze buttons, friend lookup
+│   │   ├── index.ts         # Webhook handler (Telegram commands) + Firestore trigger
+│   │   └── formatter.ts     # Status report formatting, friend lookup
 │   ├── package.json
 │   └── tsconfig.json
 ├── .github/
@@ -287,18 +287,17 @@ The system is split across two runtimes:
 - Does **not** send Telegram messages directly
 
 ### Firebase Cloud Functions (TypeScript, always-on)
-- **`morningNotification` trigger** — fires when Rust writes `should_notify: true` to `status/latest`; formats and sends the Telegram message with snooze buttons
+- **`morningNotification` trigger** — fires when Rust writes `should_notify: true` to `status/latest`; formats and sends the Telegram message; stores `last_notification_message_id`
 - **`webhook`** — receives Telegram updates:
   - `/update` — triggers the GitHub Actions workflow via API
-  - `/unsnooze <name>` — removes a snooze from Firestore (matches by id, name, or alias)
-  - Inline button callbacks — writes snooze to Firestore, edits the message
+  - `/snooze <name> <days>` — writes snooze to Firestore, edits the notification message
+  - `/unsnooze <name>` — removes a snooze from Firestore, edits the notification message (matches by id, name, or alias)
 
 ### Formatting (TypeScript `formatter.ts`)
 All status report formatting lives in `formatter.ts`, not in Rust. This includes:
 - 4-bucket grouping: Already planned / Need to catch up / Schedule soon / On track
 - Berlin-time timestamp header
-- Friend line format (last seen, next planned, event names truncated at 50 chars)
-- Snooze button builder (excludes already-planned and snoozed friends)
+- Friend line format (bold name, days since last seen, snooze expiry)
 - Friend lookup by id, name, or alias (case-insensitive)
 
 ## How It Works
@@ -315,8 +314,8 @@ All status report formatting lives in `formatter.ts`, not in Rust. This includes
    - Reminds at 85% of target frequency (15% buffer)
    - Skips reminder if meeting already scheduled
    - Ignores recurring events (birthdays)
-9. **Firestore Trigger Fires** - Cloud Function detects `should_notify: true`, formats the report in TypeScript, sends Telegram message with inline snooze buttons
-10. **Button Callback** - Cloud Function handles button clicks, writes snooze to Firestore, edits the message
+9. **Firestore Trigger Fires** - Cloud Function detects `should_notify: true`, formats the report in TypeScript, sends Telegram message
+10. **Snooze/Unsnooze** - `/snooze` and `/unsnooze` commands update Firestore and edit the live notification message
 
 ## Development
 

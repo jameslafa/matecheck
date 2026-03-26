@@ -51,23 +51,27 @@ test("findFriend: no aliases field does not crash", () => {
 // --- friendLink ---
 
 test("friendLink: telegram username", () => {
-  expect(friendLink("Alice", "alice_tg")).toBe("[Alice](https://t.me/alice_tg)");
+  expect(friendLink("Alice", "alice_tg")).toBe('<a href="https://t.me/alice_tg">Alice</a>');
 });
 
 test("friendLink: whatsapp phone", () => {
-  expect(friendLink("Bob", undefined, "+49 157 3463 0875")).toBe("[Bob](https://wa.me/4915734630875)");
+  expect(friendLink("Bob", undefined, "+49 157 3463 0875")).toBe('<a href="https://wa.me/4915734630875">Bob</a>');
 });
 
 test("friendLink: strips + and spaces from phone", () => {
-  expect(friendLink("Bob", undefined, "+1 234 567 8900")).toBe("[Bob](https://wa.me/12345678900)");
+  expect(friendLink("Bob", undefined, "+1 234 567 8900")).toBe('<a href="https://wa.me/12345678900">Bob</a>');
 });
 
 test("friendLink: empty telegram falls back to whatsapp", () => {
-  expect(friendLink("Dave", "", "+1234567890")).toBe("[Dave](https://wa.me/1234567890)");
+  expect(friendLink("Dave", "", "+1234567890")).toBe('<a href="https://wa.me/1234567890">Dave</a>');
 });
 
 test("friendLink: no contact info returns plain name", () => {
   expect(friendLink("Charlie")).toBe("Charlie");
+});
+
+test("friendLink: escapes HTML special chars in name", () => {
+  expect(friendLink("A&B")).toBe("A&amp;B");
 });
 
 // --- formatStatusReport ---
@@ -75,20 +79,20 @@ test("friendLink: no contact info returns plain name", () => {
 test("formatStatusReport: never_met appears under Need to catch up", () => {
   const report = makeReport([makeStatus({ friend_id: "charlie", friend_name: "Charlie", status: "never_met" })]);
   const text = formatStatusReport(report, friends);
-  expect(text).toContain("*🔴 Need to catch up*");
-  expect(text).toContain("🔴 Charlie: never met");
+  expect(text).toContain("<b>🔴 Need to catch up</b>");
+  expect(text).toContain("<b>Charlie</b>: never met");
 });
 
 test("formatStatusReport: overdue shows days ago and late count", () => {
   const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "overdue", days_since_last_seen: 45, days_overdue: 15 })]);
   const text = formatStatusReport(report, friends);
-  expect(text).toContain("🔴 [Alice](https://t.me/alice_tg): 45d ago · 15d late");
+  expect(text).toContain('<b><a href="https://t.me/alice_tg">Alice</a></b>: 45d ago · 15d late');
 });
 
 test("formatStatusReport: on_track no overdue suffix", () => {
   const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "on_track", days_since_last_seen: 10, days_overdue: -5 })]);
   const text = formatStatusReport(report, friends);
-  expect(text).toContain("🟢 [Alice](https://t.me/alice_tg): 10d ago");
+  expect(text).toContain('<b><a href="https://t.me/alice_tg">Alice</a></b>: 10d ago');
   expect(text).not.toContain("d overdue");
 });
 
@@ -100,9 +104,9 @@ test("formatStatusReport: friend with next_planned_date goes to Already planned 
     next_planned_event: "Coffee", next_planned_date: futureDate,
   })]);
   const text = formatStatusReport(report, friends);
-  expect(text).toContain("*📅 Already planned*");
-  expect(text).toContain("📅 [Alice](https://t.me/alice_tg): in 3d");
-  expect(text).not.toContain("*🟢 On track*");
+  expect(text).toContain("<b>📅 Already planned</b>");
+  expect(text).toContain('<b><a href="https://t.me/alice_tg">Alice</a></b>: in 3d');
+  expect(text).not.toContain("<b>🟢 On track</b>");
 });
 
 test("formatStatusReport: snoozed with expiry shows until date", () => {
@@ -146,7 +150,7 @@ test("formatStatusReport: frequency-based sort within bucket", () => {
 test("formatStatusReport: header has Berlin timestamp", () => {
   const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "on_track", days_since_last_seen: 5 })]);
   const text = formatStatusReport(report, friends);
-  expect(text).toContain("📊 *Friend Status Report*");
+  expect(text).toContain("📊 <b>Friend Status Report</b>");
   expect(text).toContain("🕐 ");
   // updated_at is 2026-03-25T08:00:00Z = 09:00 Berlin (CET, UTC+1)
   expect(text).toContain("25 Mar 2026 at 09:00");
@@ -155,27 +159,27 @@ test("formatStatusReport: header has Berlin timestamp", () => {
 test("formatStatusReport: due_soon without plan goes to Schedule soon bucket", () => {
   const report = makeReport([makeStatus({ friend_id: "bob", friend_name: "Bob", status: "due_soon", days_since_last_seen: 20 })]);
   const text = formatStatusReport(report, friends);
-  expect(text).toContain("*🟡 Schedule soon*");
-  expect(text).toContain("🟡 [Bob](https://wa.me/4915734630875): 20d ago");
+  expect(text).toContain("<b>🟡 Schedule soon</b>");
+  expect(text).toContain('<b><a href="https://wa.me/4915734630875">Bob</a></b>: 20d ago');
 });
 
 test("formatStatusReport: planned shows 'today' when daysUntil <= 0", () => {
   const pastDate = new Date(Date.now() - 1 * 864e5).toISOString();
   const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "on_track", next_planned_date: pastDate })]);
   const text = formatStatusReport(report, friends);
-  expect(text).toContain("📅 [Alice](https://t.me/alice_tg): today");
+  expect(text).toContain('<b><a href="https://t.me/alice_tg">Alice</a></b>: today');
 });
 
 test("formatStatusReport: planned shows 'tomorrow' when daysUntil is 1", () => {
   const tomorrow = new Date(Date.now() + 1.2 * 864e5).toISOString();
   const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "on_track", next_planned_date: tomorrow })]);
   const text = formatStatusReport(report, friends);
-  expect(text).toContain("📅 [Alice](https://t.me/alice_tg): tomorrow");
+  expect(text).toContain('<b><a href="https://t.me/alice_tg">Alice</a></b>: tomorrow');
 });
 
 test("formatStatusReport: no data when days_since_last_seen absent on non-never_met", () => {
   const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "overdue", days_overdue: 5 })]);
   const text = formatStatusReport(report, friends);
-  expect(text).toContain("🔴 [Alice](https://t.me/alice_tg): no data");
+  expect(text).toContain('<b><a href="https://t.me/alice_tg">Alice</a></b>: no data');
 });
 

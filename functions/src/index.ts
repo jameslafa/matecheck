@@ -108,7 +108,7 @@ async function sendTelegramMessage(
     body: JSON.stringify({
       chat_id: chatId,
       text,
-      parse_mode: "Markdown",
+      parse_mode: "HTML",
       link_preview_options: { is_disabled: true },
     }),
   });
@@ -141,7 +141,7 @@ async function editTelegramMessage(
       chat_id: chatId,
       message_id: messageId,
       text,
-      parse_mode: "Markdown",
+      parse_mode: "HTML",
       link_preview_options: { is_disabled: true },
     }),
   });

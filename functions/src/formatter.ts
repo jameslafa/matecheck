@@ -39,18 +39,23 @@ export function findFriend(query: string, friends: FriendConfig[]): FriendConfig
   ) ?? null;
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 /**
- * Returns a clickable Telegram/WhatsApp link, or plain name as fallback
+ * Returns an HTML link, or plain escaped name as fallback
  */
 export function friendLink(name: string, telegramUsername?: string, whatsappPhone?: string): string {
+  const safe = escapeHtml(name);
   if (telegramUsername) {
-    return `[${name}](https://t.me/${telegramUsername})`;
+    return `<a href="https://t.me/${telegramUsername}">${safe}</a>`;
   }
   if (whatsappPhone) {
     const clean = whatsappPhone.replace(/\+/g, "").replace(/\s/g, "");
-    return `[${name}](https://wa.me/${clean})`;
+    return `<a href="https://wa.me/${clean}">${safe}</a>`;
   }
-  return name;
+  return safe;
 }
 
 function formatBerlinTime(isoString: string): string {
@@ -104,10 +109,10 @@ export function formatStatusReport(report: StatusReport, friends: FriendConfig[]
     const name = getName(f);
     const daysUntil = Math.round((new Date(f.next_planned_date!).getTime() - Date.now()) / 864e5);
     const when = daysUntil <= 0 ? "today" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil}d`;
-    return `📅 ${name}: ${when}${snoozeLabel(f)}`;
+    return `<b>${name}</b>: ${when}${snoozeLabel(f)}`;
   };
 
-  const renderOther = (f: FriendStatus, emoji: string) => {
+  const renderOther = (f: FriendStatus) => {
     const name = getName(f);
     let detail: string;
     if (f.status === "never_met") {
@@ -120,25 +125,25 @@ export function formatStatusReport(report: StatusReport, friends: FriendConfig[]
     } else {
       detail = "no data";
     }
-    return `${emoji} ${name}: ${detail}${snoozeLabel(f)}`;
+    return `<b>${name}</b>: ${detail}${snoozeLabel(f)}`;
   };
 
   const sections: string[] = [];
 
   if (planned.length > 0) {
-    sections.push("*📅 Already planned*\n" + planned.map(renderPlanned).join("\n"));
+    sections.push("<b>📅 Already planned</b>\n" + planned.map(renderPlanned).join("\n"));
   }
   if (catchUp.length > 0) {
-    sections.push("*🔴 Need to catch up*\n" + catchUp.map((f) => renderOther(f, "🔴")).join("\n"));
+    sections.push("<b>🔴 Need to catch up</b>\n" + catchUp.map(renderOther).join("\n"));
   }
   if (soon.length > 0) {
-    sections.push("*🟡 Schedule soon*\n" + soon.map((f) => renderOther(f, "🟡")).join("\n"));
+    sections.push("<b>🟡 Schedule soon</b>\n" + soon.map(renderOther).join("\n"));
   }
   if (onTrack.length > 0) {
-    sections.push("*🟢 On track*\n" + onTrack.map((f) => renderOther(f, "🟢")).join("\n"));
+    sections.push("<b>🟢 On track</b>\n" + onTrack.map(renderOther).join("\n"));
   }
 
-  const header = `📊 *Friend Status Report*\n🕐 ${formatBerlinTime(report.updated_at)}`;
+  const header = `📊 <b>Friend Status Report</b>\n🕐 ${formatBerlinTime(report.updated_at)}`;
 
-  return header + "\n\n" + sections.join("\n\n") + "\n\n[Dashboard](https://jameslafa.github.io/matecheck/)";
+  return header + "\n\n" + sections.join("\n\n") + "\n\n<a href=\"https://jameslafa.github.io/matecheck/\">Dashboard</a>";
 }
