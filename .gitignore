@@ -27,6 +27,8 @@ functions/*.log
 
 # IDE and editor settings
 .claude/
+claude_plans/
+/node_modules/
 
 # Test fixtures with personal data
 tests/fixtures/calendar_events.json
