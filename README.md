@@ -333,6 +333,12 @@ cargo test test_name          # Specific test
 cargo run --bin get_chat_id   # Get your Telegram chat ID
 ```
 
+### Deploy Firebase Functions
+
+```bash
+firebase deploy --only functions
+```
+
 ## License
 
 MIT License - See [LICENSE](LICENSE) file

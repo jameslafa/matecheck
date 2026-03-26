@@ -101,9 +101,10 @@ export function formatStatusReport(report: StatusReport, friends: FriendConfig[]
   const byFreq = (a: FriendStatus, b: FriendStatus) => a.frequency_days - b.frequency_days;
 
   const planned = report.friends.filter((f) => f.next_planned_date).sort(byFreq);
-  const catchUp = report.friends.filter((f) => !f.next_planned_date && (f.status === "overdue" || f.status === "never_met")).sort(byFreq);
-  const soon = report.friends.filter((f) => !f.next_planned_date && f.status === "due_soon").sort(byFreq);
-  const onTrack = report.friends.filter((f) => !f.next_planned_date && f.status === "on_track").sort(byFreq);
+  const catchUp = report.friends.filter((f) => !f.next_planned_date && !f.snoozed && (f.status === "overdue" || f.status === "never_met")).sort(byFreq);
+  const soon = report.friends.filter((f) => !f.next_planned_date && !f.snoozed && f.status === "due_soon").sort(byFreq);
+  const onTrack = report.friends.filter((f) => !f.next_planned_date && !f.snoozed && f.status === "on_track").sort(byFreq);
+  const snoozed = report.friends.filter((f) => !f.next_planned_date && f.snoozed).sort(byFreq);
 
   const renderPlanned = (f: FriendStatus) => {
     const name = getName(f);
@@ -141,6 +142,9 @@ export function formatStatusReport(report: StatusReport, friends: FriendConfig[]
   }
   if (onTrack.length > 0) {
     sections.push("<b>🟢 On track</b>\n" + onTrack.map(renderOther).join("\n"));
+  }
+  if (snoozed.length > 0) {
+    sections.push("<b>💤 Snoozed</b>\n" + snoozed.map(renderOther).join("\n"));
   }
 
   const header = `📊 <b>Friend Status Report</b>\n🕐 ${formatBerlinTime(report.updated_at)}`;

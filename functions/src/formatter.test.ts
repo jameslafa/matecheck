@@ -109,33 +109,40 @@ test("formatStatusReport: friend with next_planned_date goes to Already planned 
   expect(text).not.toContain("<b>🟢 On track</b>");
 });
 
-test("formatStatusReport: snoozed with expiry shows until date", () => {
+test("formatStatusReport: snoozed with expiry appears in Snoozed section with until date", () => {
   const until = "2026-04-02T12:00:00Z";
   const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "overdue", days_since_last_seen: 40, days_overdue: 10, snoozed: true, snoozed_until: until })]);
   const text = formatStatusReport(report, friends);
+  expect(text).toContain("<b>💤 Snoozed</b>");
   expect(text).toContain("💤 until 2 Apr");
+  expect(text).not.toContain("<b>🔴 Need to catch up</b>");
 });
 
-test("formatStatusReport: snoozed without expiry shows plain 💤", () => {
+test("formatStatusReport: snoozed without expiry appears in Snoozed section with plain 💤", () => {
   const report = makeReport([makeStatus({ friend_id: "alice", friend_name: "Alice", status: "overdue", days_since_last_seen: 40, days_overdue: 10, snoozed: true })]);
   const text = formatStatusReport(report, friends);
+  expect(text).toContain("<b>💤 Snoozed</b>");
   expect(text).toContain(" 💤");
   expect(text).not.toContain("until");
+  expect(text).not.toContain("<b>🔴 Need to catch up</b>");
 });
 
-test("formatStatusReport: bucket order is planned, catch-up, soon, on-track", () => {
+test("formatStatusReport: bucket order is planned, catch-up, soon, on-track, snoozed", () => {
   const futureDate = new Date(Date.now() + 5 * 864e5).toISOString();
   const statuses: FriendStatus[] = [
     makeStatus({ friend_id: "charlie", friend_name: "Charlie", status: "on_track", days_since_last_seen: 10 }),
     makeStatus({ friend_id: "alice", friend_name: "Alice", status: "overdue", days_since_last_seen: 50, days_overdue: 20 }),
     makeStatus({ friend_id: "bob", friend_name: "Bob", status: "due_soon", days_since_last_seen: 25, next_planned_date: futureDate, next_planned_event: "Dinner" }),
+    makeStatus({ friend_id: "dave", friend_name: "Dave", status: "overdue", days_since_last_seen: 40, days_overdue: 10, snoozed: true }),
   ];
   const text = formatStatusReport(makeReport(statuses), friends);
   const plannedPos = text.indexOf("Already planned");
   const catchUpPos = text.indexOf("Need to catch up");
   const onTrackPos = text.indexOf("On track");
+  const snoozedPos = text.indexOf("Snoozed");
   expect(plannedPos).toBeLessThan(catchUpPos);
   expect(catchUpPos).toBeLessThan(onTrackPos);
+  expect(onTrackPos).toBeLessThan(snoozedPos);
 });
 
 test("formatStatusReport: frequency-based sort within bucket", () => {
