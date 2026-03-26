@@ -1,4 +1,4 @@
-import { friendLink, formatStatusReport, buildSnoozeButtons, FriendStatus, StatusReport, FriendConfig } from "./formatter";
+import { friendLink, formatStatusReport, buildSnoozeButtons, findFriend, FriendStatus, StatusReport, FriendConfig } from "./formatter";
 
 const friends: FriendConfig[] = [
   { id: "alice", name: "Alice", telegram_username: "alice_tg" },
@@ -19,6 +19,34 @@ function makeStatus(overrides: Partial<FriendStatus> & Pick<FriendStatus, "frien
 function makeReport(friends_: FriendStatus[]): StatusReport {
   return { updated_at: "2026-03-25T08:00:00Z", friends: friends_ };
 }
+
+const friendsWithAliases: FriendConfig[] = [
+  { id: "alice", name: "Alice", aliases: ["Al", "Alicia"] },
+  { id: "bob", name: "Bob" },
+];
+
+// --- findFriend ---
+
+test("findFriend: match by id", () => {
+  expect(findFriend("alice", friendsWithAliases)?.id).toBe("alice");
+});
+
+test("findFriend: match by name case-insensitive", () => {
+  expect(findFriend("ALICE", friendsWithAliases)?.id).toBe("alice");
+});
+
+test("findFriend: match by alias case-insensitive", () => {
+  expect(findFriend("al", friendsWithAliases)?.id).toBe("alice");
+  expect(findFriend("Alicia", friendsWithAliases)?.id).toBe("alice");
+});
+
+test("findFriend: not found returns null", () => {
+  expect(findFriend("dave", friendsWithAliases)).toBeNull();
+});
+
+test("findFriend: no aliases field does not crash", () => {
+  expect(findFriend("bob", friendsWithAliases)?.id).toBe("bob");
+});
 
 // --- friendLink ---
 

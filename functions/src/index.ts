@@ -2,7 +2,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 import { defineSecret } from "firebase-functions/params";
-import { StatusReport, FriendConfig, formatStatusReport, buildSnoozeButtons } from "./formatter";
+import { StatusReport, FriendConfig, formatStatusReport, buildSnoozeButtons, findFriend } from "./formatter";
 
 const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
 const telegramChatId = defineSecret("TELEGRAM_CHAT_ID");
@@ -84,6 +84,13 @@ async function snoozeFriend(friendId: string, days: number): Promise<void> {
     snoozed_at: now,
     reason: null,
   });
+}
+
+/**
+ * Remove a snooze for a friend
+ */
+async function unsnoozeFriend(friendId: string): Promise<void> {
+  await db.collection("snoozes").doc(friendId).delete();
 }
 
 /**
@@ -317,6 +324,38 @@ export const webhook = onRequest(
         console.error("Error triggering workflow:", error);
         await sendTelegramMessage(chatId, "❌ Failed to trigger update.", botToken);
       }
+      res.status(200).send("OK");
+      return;
+    }
+
+    // Handle /unsnooze command
+    if (update.message?.text?.startsWith("/unsnooze") && update.message.chat) {
+      const chatId = update.message.chat.id;
+      const arg = update.message.text.replace("/unsnooze", "").trim();
+
+      if (!arg) {
+        await sendTelegramMessage(chatId, "Usage: /unsnooze <name or id>", botToken);
+        res.status(200).send("OK");
+        return;
+      }
+
+      try {
+        const friends = await getAllFriends();
+        const friend = findFriend(arg, friends);
+
+        if (!friend) {
+          await sendTelegramMessage(chatId, `❌ Friend not found: "${arg}"`, botToken);
+          res.status(200).send("OK");
+          return;
+        }
+
+        await unsnoozeFriend(friend.id);
+        await sendTelegramMessage(chatId, `✅ Snooze removed for ${friend.name}`, botToken);
+      } catch (error) {
+        console.error("Error handling /unsnooze:", error);
+        await sendTelegramMessage(chatId, "❌ Failed to remove snooze.", botToken);
+      }
+
       res.status(200).send("OK");
       return;
     }

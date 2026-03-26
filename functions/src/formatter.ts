@@ -21,8 +21,21 @@ export interface StatusReport {
 export interface FriendConfig {
   id: string;
   name: string;
+  aliases?: string[];
   telegram_username?: string;
   whatsapp_phone?: string;
+}
+
+/**
+ * Find a friend by id, name, or alias (case-insensitive)
+ */
+export function findFriend(query: string, friends: FriendConfig[]): FriendConfig | null {
+  const q = query.toLowerCase();
+  return friends.find((f) =>
+    f.id.toLowerCase() === q ||
+    f.name.toLowerCase() === q ||
+    f.aliases?.some((a) => a.toLowerCase() === q)
+  ) ?? null;
 }
 
 /**
