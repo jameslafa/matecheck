@@ -105,7 +105,7 @@ test("formatStatusReport: friend with next_planned_date goes to Already planned 
   })]);
   const text = formatStatusReport(report, friends);
   expect(text).toContain("<b>📅 Already planned</b>");
-  expect(text).toContain('<b><a href="https://t.me/alice_tg">Alice</a></b>: in 3d');
+  expect(text).toMatch(/<b><a href="https:\/\/t\.me\/alice_tg">Alice<\/a><\/b>: \d+ \w+.*\(in 3d\)/);
   expect(text).not.toContain("<b>🟢 On track</b>");
 });
 
@@ -143,6 +143,17 @@ test("formatStatusReport: bucket order is planned, catch-up, soon, on-track, sno
   expect(plannedPos).toBeLessThan(catchUpPos);
   expect(catchUpPos).toBeLessThan(onTrackPos);
   expect(onTrackPos).toBeLessThan(snoozedPos);
+});
+
+test("formatStatusReport: planned bucket sorted by next_planned_date", () => {
+  const sooner = new Date(Date.now() + 3 * 864e5).toISOString();
+  const later = new Date(Date.now() + 10 * 864e5).toISOString();
+  const statuses: FriendStatus[] = [
+    makeStatus({ friend_id: "bob", friend_name: "Bob", status: "on_track", next_planned_date: later }),
+    makeStatus({ friend_id: "alice", friend_name: "Alice", status: "on_track", next_planned_date: sooner }),
+  ];
+  const text = formatStatusReport(makeReport(statuses), friends);
+  expect(text.indexOf("Alice")).toBeLessThan(text.indexOf("Bob"));
 });
 
 test("formatStatusReport: frequency-based sort within bucket", () => {

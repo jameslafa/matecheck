@@ -82,6 +82,34 @@ function formatShortDate(isoString: string): string {
   }).format(new Date(isoString));
 }
 
+/** Returns "HH:MM" in Berlin time, or empty string for midnight (all-day events). */
+function formatTime(isoString: string): string {
+  const date = new Date(isoString);
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Europe/Berlin",
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const hour = get("hour");
+  const minute = get("minute");
+  return hour === "00" && minute === "00" ? "" : `${hour}:${minute}`;
+}
+
+function formatShortDateTime(isoString: string): string {
+  const date = new Date(isoString);
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    timeZone: "Europe/Berlin",
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const dateStr = `${get("day")} ${get("month")}`;
+  const time = formatTime(isoString);
+  return time ? `${dateStr} at ${time}` : dateStr;
+}
+
 function snoozeLabel(f: FriendStatus): string {
   if (!f.snoozed) return "";
   return f.snoozed_until ? ` 💤 until ${formatShortDate(f.snoozed_until)}` : " 💤";
@@ -100,7 +128,7 @@ export function formatStatusReport(report: StatusReport, friends: FriendConfig[]
 
   const byFreq = (a: FriendStatus, b: FriendStatus) => a.frequency_days - b.frequency_days;
 
-  const planned = report.friends.filter((f) => f.next_planned_date).sort(byFreq);
+  const planned = report.friends.filter((f) => f.next_planned_date).sort((a, b) => new Date(a.next_planned_date!).getTime() - new Date(b.next_planned_date!).getTime());
   const catchUp = report.friends.filter((f) => !f.next_planned_date && !f.snoozed && (f.status === "overdue" || f.status === "never_met")).sort(byFreq);
   const soon = report.friends.filter((f) => !f.next_planned_date && !f.snoozed && f.status === "due_soon").sort(byFreq);
   const onTrack = report.friends.filter((f) => !f.next_planned_date && !f.snoozed && f.status === "on_track").sort(byFreq);
@@ -109,8 +137,11 @@ export function formatStatusReport(report: StatusReport, friends: FriendConfig[]
   const renderPlanned = (f: FriendStatus) => {
     const name = getName(f);
     const daysUntil = Math.round((new Date(f.next_planned_date!).getTime() - Date.now()) / 864e5);
+    const time = formatTime(f.next_planned_date!);
     const when = daysUntil <= 0 ? "today" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil}d`;
-    return `<b>${name}</b>: ${when}${snoozeLabel(f)}`;
+    const dateStr = formatShortDateTime(f.next_planned_date!);
+    const label = daysUntil <= 1 ? (time ? `${when} at ${time}` : when) : `${dateStr} (${when})`;
+    return `<b>${name}</b>: ${label}${snoozeLabel(f)}`;
   };
 
   const renderOther = (f: FriendStatus) => {
