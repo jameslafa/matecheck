@@ -5,6 +5,7 @@ export interface FriendStatus {
   last_seen_event?: string;
   next_planned_date?: string;
   next_planned_event?: string;
+  planned_dates?: string[];
   days_since_last_seen?: number;
   frequency_days: number;
   days_overdue: number;
@@ -141,7 +142,16 @@ export function formatStatusReport(report: StatusReport, friends: FriendConfig[]
     const when = daysUntil <= 0 ? "today" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil}d`;
     const dateStr = formatShortDateTime(f.next_planned_date!);
     const label = daysUntil <= 1 ? (time ? `${when} at ${time}` : when) : `${dateStr} (${when})`;
-    return `<b>${name}</b>: ${label}${snoozeLabel(f)}`;
+
+    const extra = (f.planned_dates ?? [])
+      .slice(1, 3)
+      .map((iso) => {
+        const d = Math.round((new Date(iso).getTime() - Date.now()) / 864e5);
+        return `${formatShortDate(iso)} (in ${d}d)`;
+      })
+      .join(" · ");
+
+    return `<b>${name}</b>: ${label}${extra ? ` · ${extra}` : ""}${snoozeLabel(f)}`;
   };
 
   const renderOther = (f: FriendStatus) => {

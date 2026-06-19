@@ -24,6 +24,8 @@ pub struct FriendStatus {
     pub next_planned_date: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_planned_event: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub planned_dates: Vec<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub days_since_last_seen: Option<i64>,
     pub frequency_days: u32,

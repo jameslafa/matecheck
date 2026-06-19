@@ -212,6 +212,7 @@ async fn main() {
                     // Compute status for all friends
                     let last_meetings = matcher::find_last_meetings(&events, &config.friends);
                     let next_meetings = matcher::find_next_meetings(&events, &config.friends);
+                    let next_n_meetings = matcher::find_next_n_meetings(&events, &config.friends, 3);
 
                     let friend_statuses: Vec<firestore::types::FriendStatus> = config.friends.iter().map(|friend| {
                         let last = last_meetings.get(&friend.id).and_then(|e| e.as_ref());
@@ -238,6 +239,11 @@ async fn main() {
                             firestore::types::FriendStatusValue::OnTrack
                         };
 
+                        let planned_dates = next_n_meetings
+                            .get(&friend.id)
+                            .map(|evts| evts.iter().map(|e| e.start).collect())
+                            .unwrap_or_default();
+
                         firestore::types::FriendStatus {
                             friend_id: friend.id.clone(),
                             friend_name: friend.name.clone(),
@@ -245,6 +251,7 @@ async fn main() {
                             last_seen_event: last.map(|e| e.title.clone()),
                             next_planned_date: next.map(|e| e.start),
                             next_planned_event: next.map(|e| e.title.clone()),
+                            planned_dates,
                             days_since_last_seen: days_since,
                             frequency_days: friend.frequency_days,
                             days_overdue,

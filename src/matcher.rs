@@ -108,6 +108,28 @@ pub fn find_last_meetings(events: &[Event], friends: &[Friend]) -> HashMap<Strin
     last_event_by_friend
 }
 
+/// Find the next N upcoming events for each friend, sorted by date (soonest first)
+pub fn find_next_n_meetings(events: &[Event], friends: &[Friend], n: usize) -> HashMap<String, Vec<Event>> {
+    let now = Utc::now();
+    let mut result: HashMap<String, Vec<Event>> = friends.iter().map(|f| (f.id.clone(), vec![])).collect();
+
+    for event in events {
+        if event.start <= now {
+            continue;
+        }
+        for matched_friend in find_matches(event, friends) {
+            result.get_mut(&matched_friend.id).unwrap().push(event.clone());
+        }
+    }
+
+    for events_for_friend in result.values_mut() {
+        events_for_friend.sort_by_key(|e| e.start);
+        events_for_friend.truncate(n);
+    }
+
+    result
+}
+
 /// Find the soonest upcoming event for each friend
 ///
 /// Returns a HashMap where:
