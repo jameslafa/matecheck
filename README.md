@@ -61,6 +61,7 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
 ### Telegram Bot Commands
 
 - `update` - Trigger a data refresh
+- `refresh` - Re-render and update the last notification message
 - `snooze` - Snooze a friend for x days
 - `unsnooze` - Remove a snooze for a friend
 

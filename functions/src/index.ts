@@ -227,6 +227,20 @@ export const webhook = onRequest(
       return;
     }
 
+    // Handle /refresh command
+    if (update.message?.text === "/refresh" && update.message.chat) {
+      const chatId = update.message.chat.id;
+      try {
+        await editNotification(Number(telegramChatId.value()), botToken);
+        await sendTelegramMessage(chatId, "✅ Notification refreshed.", botToken);
+      } catch (error) {
+        console.error("Error handling /refresh:", error);
+        await sendTelegramMessage(chatId, "❌ Failed to refresh notification.", botToken);
+      }
+      res.status(200).send("OK");
+      return;
+    }
+
     // Handle /unsnooze command
     if (update.message?.text?.startsWith("/unsnooze") && update.message.chat) {
       const chatId = update.message.chat.id;
