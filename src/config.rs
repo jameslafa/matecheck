@@ -31,6 +31,14 @@ pub struct Friend {
 
     /// How often (in days) you want to meet this friend
     pub frequency_days: u32,
+
+    /// Whether this friend is active (included in notifications). Defaults to true.
+    #[serde(default = "default_active")]
+    pub active: bool,
+}
+
+fn default_active() -> bool {
+    true
 }
 
 impl Friend {
@@ -74,7 +82,8 @@ impl Config {
     pub async fn load_from_firestore(
         client: &crate::firestore::FirestoreClient,
     ) -> Result<Config> {
-        let friends = client.friends().get_all().await?;
+        let all_friends = client.friends().get_all().await?;
+        let friends: Vec<Friend> = all_friends.into_iter().filter(|f| f.active).collect();
 
         let config = Config { friends };
 
@@ -156,6 +165,7 @@ mod tests {
                     whatsapp_phone: None,
                     aliases: vec![],
                     frequency_days: 14,
+                    active: true,
                 },
                 Friend {
                     id: "bob".to_string(),
@@ -165,6 +175,7 @@ mod tests {
                     whatsapp_phone: None,
                     aliases: vec![],
                     frequency_days: 30,
+                    active: true,
                 },
             ],
         };
@@ -184,6 +195,7 @@ mod tests {
                     whatsapp_phone: None,
                     aliases: vec![],
                     frequency_days: 14,
+                    active: true,
                 },
                 Friend {
                     id: "alice".to_string(), // Duplicate!
@@ -193,6 +205,7 @@ mod tests {
                     whatsapp_phone: None,
                     aliases: vec![],
                     frequency_days: 30,
+                    active: true,
                 },
             ],
         };

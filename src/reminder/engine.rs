@@ -121,6 +121,7 @@ mod tests {
             whatsapp_phone: None,
             aliases: vec![],
             frequency_days,
+            active: true,
         }
     }
 

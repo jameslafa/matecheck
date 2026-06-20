@@ -85,11 +85,20 @@ async function getActiveSnoozedFriends(): Promise<Map<string, string>> {
 }
 
 /**
- * Load all friends from Firestore
+ * Load all active friends from Firestore
  */
 async function getAllFriends(): Promise<FriendConfig[]> {
   const snapshot = await db.collection("friends").get();
-  return snapshot.docs.map((doc) => doc.data() as FriendConfig);
+  return snapshot.docs
+    .map((doc) => doc.data() as FriendConfig)
+    .filter((f) => f.active !== false);
+}
+
+/**
+ * Set a friend's active flag in Firestore
+ */
+async function setFriendActive(friendId: string, active: boolean): Promise<void> {
+  await db.collection("friends").doc(friendId).update({ active });
 }
 
 /**
@@ -314,6 +323,70 @@ export const webhook = onRequest(
       } catch (error) {
         console.error("Error handling /snooze:", error);
         await sendTelegramMessage(chatId, "❌ Failed to snooze.", botToken);
+      }
+
+      res.status(200).send("OK");
+      return;
+    }
+
+    // Handle /deactivate command
+    if (update.message?.text?.startsWith("/deactivate") && update.message.chat) {
+      const chatId = update.message.chat.id;
+      const arg = update.message.text.replace("/deactivate", "").trim();
+
+      if (!arg) {
+        await sendTelegramMessage(chatId, "Usage: /deactivate <name or id>", botToken);
+        res.status(200).send("OK");
+        return;
+      }
+
+      try {
+        const friends = await db.collection("friends").get().then(s => s.docs.map(d => d.data() as FriendConfig));
+        const friend = findFriend(arg, friends);
+
+        if (!friend) {
+          await sendTelegramMessage(chatId, `❌ Friend not found: "${arg}"`, botToken);
+          res.status(200).send("OK");
+          return;
+        }
+
+        await setFriendActive(friend.id, false);
+        await sendTelegramMessage(chatId, `✅ ${friend.name} deactivated and will be excluded from notifications`, botToken);
+      } catch (error) {
+        console.error("Error handling /deactivate:", error);
+        await sendTelegramMessage(chatId, "❌ Failed to deactivate.", botToken);
+      }
+
+      res.status(200).send("OK");
+      return;
+    }
+
+    // Handle /activate command
+    if (update.message?.text?.startsWith("/activate") && update.message.chat) {
+      const chatId = update.message.chat.id;
+      const arg = update.message.text.replace("/activate", "").trim();
+
+      if (!arg) {
+        await sendTelegramMessage(chatId, "Usage: /activate <name or id>", botToken);
+        res.status(200).send("OK");
+        return;
+      }
+
+      try {
+        const friends = await db.collection("friends").get().then(s => s.docs.map(d => d.data() as FriendConfig));
+        const friend = findFriend(arg, friends);
+
+        if (!friend) {
+          await sendTelegramMessage(chatId, `❌ Friend not found: "${arg}"`, botToken);
+          res.status(200).send("OK");
+          return;
+        }
+
+        await setFriendActive(friend.id, true);
+        await sendTelegramMessage(chatId, `✅ ${friend.name} activated and will appear in notifications`, botToken);
+      } catch (error) {
+        console.error("Error handling /activate:", error);
+        await sendTelegramMessage(chatId, "❌ Failed to activate.", botToken);
       }
 
       res.status(200).send("OK");

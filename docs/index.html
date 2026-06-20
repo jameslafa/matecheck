@@ -715,6 +715,66 @@
         .friends-mobile {
             display: none;
         }
+
+        /* Active toggle */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 36px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: #cbd5e0;
+            border-radius: 20px;
+            transition: background 0.2s;
+        }
+
+        .toggle-slider:before {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            left: 3px;
+            top: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: #667eea;
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(16px);
+        }
+
+        tr.friend-inactive td {
+            opacity: 0.45;
+        }
+
+        tr.friend-inactive td:last-child {
+            opacity: 1;
+        }
+
+        .friend-card-mobile.friend-inactive {
+            opacity: 0.5;
+        }
+
+        .friend-card-mobile.friend-inactive .friend-card-actions {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -874,12 +934,13 @@
                                     <th>Contact Info</th>
                                     <th>Aliases</th>
                                     <th>Frequency</th>
+                                    <th style="width: 70px;">Active</th>
                                     <th style="width: 140px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="friendsTableBody">
                                 <tr>
-                                    <td colspan="5" style="text-align: center; padding: 32px; color: #718096;">
+                                    <td colspan="6" style="text-align: center; padding: 32px; color: #718096;">
                                         Loading friends...
                                     </td>
                                 </tr>
@@ -928,6 +989,15 @@
                             <input type="number" id="friendFrequency" required min="1" value="30">
                             <small>How often you want to meet</small>
                         </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500;">
+                                <label class="toggle-switch" style="margin: 0;">
+                                    <input type="checkbox" id="friendActive" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                Active (include in notifications)
+                            </label>
+                        </div>
                         <div class="form-actions">
                             <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button>
                             <button type="submit" class="btn btn-primary">Save Friend</button>
@@ -942,7 +1012,7 @@
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut as fbSignOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-        import { getFirestore, collection, getDocs, doc, getDoc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getFirestore, collection, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
         // Firebase configuration - REPLACE WITH YOUR OWN
         // See docs/SETUP.md for instructions
@@ -1087,7 +1157,7 @@
             if (friendsData.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="5">
+                        <td colspan="6">
                             <div class="empty-state">
                                 <div class="icon">👥</div>
                                 <h3>No friends yet</h3>
@@ -1109,8 +1179,10 @@
             }
 
             // Desktop table view
-            tbody.innerHTML = friendsData.map(friend => `
-                <tr>
+            tbody.innerHTML = friendsData.map(friend => {
+                const isActive = friend.active !== false;
+                return `
+                <tr class="${isActive ? '' : 'friend-inactive'}">
                     <td>
                         <div class="friend-name">${escapeHtml(friend.name)}</div>
                         <div class="friend-id">${escapeHtml(friend.id)}</div>
@@ -1132,6 +1204,12 @@
                     </td>
                     <td>Every ${friend.frequency_days} days</td>
                     <td>
+                        <label class="toggle-switch">
+                            <input type="checkbox" ${isActive ? 'checked' : ''} onchange="toggleFriendActive('${escapeHtml(friend.id)}', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </td>
+                    <td>
                         <div class="actions">
                             <button onclick="editFriend('${escapeHtml(friend.id)}')" class="btn btn-ghost btn-small">
                                 ✏️ Edit
@@ -1142,16 +1220,22 @@
                         </div>
                     </td>
                 </tr>
-            `).join('');
+            `}).join('');
 
             // Mobile cards view
-            mobileContainer.innerHTML = friendsData.map(friend => `
-                <div class="friend-card-mobile">
+            mobileContainer.innerHTML = friendsData.map(friend => {
+                const isActive = friend.active !== false;
+                return `
+                <div class="friend-card-mobile ${isActive ? '' : 'friend-inactive'}">
                     <div class="friend-card-header">
                         <div>
                             <div class="friend-name">${escapeHtml(friend.name)}</div>
                             <div class="friend-id">${escapeHtml(friend.id)}</div>
                         </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" ${isActive ? 'checked' : ''} onchange="toggleFriendActive('${escapeHtml(friend.id)}', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
                     </div>
                     <div class="friend-card-body">
                         <div><strong>Frequency:</strong> Every ${friend.frequency_days} days</div>
@@ -1176,7 +1260,7 @@
                         </button>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
         // Open add friend modal
@@ -1206,6 +1290,7 @@
             document.getElementById('friendWhatsapp').value = friend.whatsapp_phone || '';
             document.getElementById('friendAliases').value = (friend.aliases || []).join(', ');
             document.getElementById('friendFrequency').value = friend.frequency_days;
+            document.getElementById('friendActive').checked = friend.active !== false;
             showSection('edit');
         };
 
@@ -1225,7 +1310,8 @@
                     telegram_username: document.getElementById('friendTelegram').value.trim() || null,
                     whatsapp_phone: document.getElementById('friendWhatsapp').value.trim() || null,
                     aliases: aliases,
-                    frequency_days: parseInt(document.getElementById('friendFrequency').value)
+                    frequency_days: parseInt(document.getElementById('friendFrequency').value),
+                    active: document.getElementById('friendActive').checked,
                 };
 
                 const friendRef = doc(db, 'friends', friendId);
@@ -1251,6 +1337,20 @@
                 await loadFriends();
             } catch (error) {
                 showError('Failed to delete friend: ' + error.message);
+            }
+        };
+
+        // Toggle friend active state
+        window.toggleFriendActive = async (friendId, active) => {
+            try {
+                const friendRef = doc(db, 'friends', friendId);
+                await updateDoc(friendRef, { active });
+                const friend = friendsData.find(f => f.id === friendId);
+                if (friend) friend.active = active;
+                displayFriendsTable();
+            } catch (error) {
+                showError('Failed to update: ' + error.message);
+                await loadFriends();
             }
         };
 

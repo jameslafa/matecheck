@@ -26,6 +26,7 @@ export interface FriendConfig {
   aliases?: string[];
   telegram_username?: string;
   whatsapp_phone?: string;
+  active?: boolean;
 }
 
 /**
