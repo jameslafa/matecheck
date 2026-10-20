@@ -1,10 +1,10 @@
+//! Matches calendar events with friends from config
+//! Uses two strategies: email matching and title matching
+
 use crate::calendar::types::Event;
 use crate::config::Friend;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
-
-/// Matches calendar events with friends from config
-/// Uses two strategies: email matching and title matching
 
 /// Check if a friend attended an event by matching their email with attendees
 ///
@@ -13,7 +13,7 @@ pub fn match_by_email(event: &Event, friend: &Friend) -> bool {
     friend
         .email
         .as_ref()
-        .map_or(false, |email| event.has_attendee(email))
+        .is_some_and(|email| event.has_attendee(email))
 }
 
 /// Check if `word` appears as a whole word in `text` (case-insensitive).
@@ -35,12 +35,12 @@ fn is_word_match(text: &str, word: &str) -> bool {
             || !text_lower[..abs_pos]
                 .chars()
                 .next_back()
-                .map_or(false, |c| c.is_alphanumeric());
+                .is_some_and(|c| c.is_alphanumeric());
         let after_ok = abs_pos + word_len >= text_lower.len()
             || !text_lower[abs_pos + word_len..]
                 .chars()
                 .next()
-                .map_or(false, |c| c.is_alphanumeric());
+                .is_some_and(|c| c.is_alphanumeric());
         if before_ok && after_ok {
             return true;
         }
@@ -96,7 +96,7 @@ pub fn find_last_meetings(events: &[Event], friends: &[Friend]) -> HashMap<Strin
             continue;
         }
 
-        for matched_friend in find_matches(&event, friends) {
+        for matched_friend in find_matches(event, friends) {
             let current = last_event_by_friend.get_mut(&matched_friend.id).unwrap();
 
             // Update if None or if this event is more recent
@@ -394,7 +394,7 @@ mod tests {
         // Should be around 10 days (within 1 day for test timing tolerance)
         assert!(days.is_some());
         let days = days.unwrap();
-        assert!(days >= 9 && days <= 11, "Expected ~10 days, got {}", days);
+        assert!((9..=11).contains(&days), "Expected ~10 days, got {}", days);
     }
 
     #[test]
@@ -421,7 +421,7 @@ mod tests {
 
         assert!(days.is_some());
         let days = days.unwrap();
-        assert!(days >= 6 && days <= 8, "Expected ~7 days, got {}", days);
+        assert!((6..=8).contains(&days), "Expected ~7 days, got {}", days);
     }
 
     #[test]

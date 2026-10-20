@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::i64;
 
 use crate::calendar::types::Event;
 use crate::config::{Config, Friend};

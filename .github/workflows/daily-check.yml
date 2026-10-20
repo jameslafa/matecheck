@@ -38,16 +38,14 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
 
       - name: Cache release binary
         id: cache-binary
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: target/release/matecheck
           key: binary-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'src/**/*.rs') }}
