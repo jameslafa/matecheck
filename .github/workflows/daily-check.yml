@@ -13,9 +13,8 @@
 # NOTE: OAuth tokens refresh automatically. If expired, regenerate token.json locally and update secret.
 #
 # SCHEDULE:
-# - Weekdays (Mon-Fri): 7:47 AM Berlin time (CET/winter)
-# - Weekends (Sat-Sun): 9:17 AM Berlin time (CET/winter)
-# Note: During CEST (summer), runs 1 hour later. Adjust cron if needed.
+# - Daily at 9:00 Berlin time, triggered by the Firebase function `dailyCheck`
+#   (functions/src/index.ts). GitHub's own cron ran hours late.
 #
 # TESTING:
 # - Use "Actions" tab → "Daily Friend Reminder Check" → "Run workflow"
@@ -23,13 +22,7 @@
 name: Daily Friend Reminder Check
 
 on:
-  # Weekdays at 7:47 AM Berlin time (6:47 AM UTC in winter/CET)
-  # Note: During summer (CEST), this runs 1 hour later
-  schedule:
-    - cron: '47 6 * * 1-5'  # Mon-Fri 6:47 UTC (off the hour to reduce GitHub queue delays)
-    - cron: '17 8 * * 0,6'  # Sat-Sun 8:17 UTC (9:17 AM CET)
-
-  # Allow manual trigger for testing
+  # Triggered by the Firebase `dailyCheck` schedule, Telegram /update, or manually
   workflow_dispatch:
 
 jobs:

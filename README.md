@@ -67,7 +67,7 @@ MateCheck connects to your Google Calendar, identifies meetings with friends, an
 
 ### Automation
 
-- **GitHub Actions** - Runs automatically on schedule
+- **GitHub Actions** - Runs the check, triggered daily at 9:00 Berlin time by a Firebase scheduled function
   - Weekdays: 8:00 AM Berlin time
   - Weekends: 9:30 AM Berlin time
 - **Manual Testing** - Can be triggered manually for testing

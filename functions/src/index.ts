@@ -1,5 +1,6 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
 import { defineSecret } from "firebase-functions/params";
 import { StatusReport, FriendConfig, formatStatusReport, findFriend } from "./formatter";
@@ -189,6 +190,30 @@ async function editNotification(chatId: number, botToken: string): Promise<void>
 }
 
 /**
+ * Trigger the daily-check GitHub Actions workflow. Returns true on success (204).
+ */
+async function triggerWorkflow(): Promise<boolean> {
+  const response = await fetch(
+    "https://api.github.com/repos/jameslafa/matecheck/actions/workflows/daily-check.yml/dispatches",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${githubToken.value()}`,
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ref: "master" }),
+    }
+  );
+
+  if (response.status !== 204) {
+    console.error("GitHub API error:", response.status, await response.text());
+    return false;
+  }
+  return true;
+}
+
+/**
  * Main webhook handler
  */
 export const webhook = onRequest(
@@ -208,24 +233,9 @@ export const webhook = onRequest(
     if (update.message?.text === "/update" && update.message.chat) {
       const chatId = update.message.chat.id;
       try {
-        const response = await fetch(
-          "https://api.github.com/repos/jameslafa/matecheck/actions/workflows/daily-check.yml/dispatches",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${githubToken.value()}`,
-              Accept: "application/vnd.github+json",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ ref: "master" }),
-          }
-        );
-
-        if (response.status === 204) {
+        if (await triggerWorkflow()) {
           await sendTelegramMessage(chatId, "🔄 Update triggered! The check will run in a minute.", botToken);
         } else {
-          const body = await response.text();
-          console.error("GitHub API error:", response.status, body);
           await sendTelegramMessage(chatId, "❌ Failed to trigger update.", botToken);
         }
       } catch (error) {
@@ -429,6 +439,19 @@ export const morningNotification = onDocumentWritten(
 
     if (messageId) {
       await db.collection("status").doc("latest").update({ last_notification_message_id: messageId });
+    }
+  }
+);
+
+/**
+ * Daily check at 9:00 Berlin time: GitHub's own cron runs hours late, so Cloud Scheduler
+ * triggers the workflow instead. Throwing marks the run as failed in the logs.
+ */
+export const dailyCheck = onSchedule(
+  { schedule: "0 9 * * *", timeZone: "Europe/Berlin", secrets: [githubToken] },
+  async () => {
+    if (!(await triggerWorkflow())) {
+      throw new Error("Failed to trigger daily-check workflow");
     }
   }
 );
