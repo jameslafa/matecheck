@@ -13,8 +13,8 @@
 # NOTE: OAuth tokens refresh automatically. If expired, regenerate token.json locally and update secret.
 #
 # SCHEDULE:
-# - Weekdays (Mon-Fri): 8:00 AM Berlin time (CET/winter)
-# - Weekends (Sat-Sun): 9:30 AM Berlin time (CET/winter)
+# - Weekdays (Mon-Fri): 7:47 AM Berlin time (CET/winter)
+# - Weekends (Sat-Sun): 9:17 AM Berlin time (CET/winter)
 # Note: During CEST (summer), runs 1 hour later. Adjust cron if needed.
 #
 # TESTING:
@@ -23,11 +23,11 @@
 name: Daily Friend Reminder Check
 
 on:
-  # Weekdays at 8:00 AM Berlin time (7:00 AM UTC in winter/CET)
-  # Note: During summer (CEST), this runs at 9:00 AM Berlin time
+  # Weekdays at 7:47 AM Berlin time (6:47 AM UTC in winter/CET)
+  # Note: During summer (CEST), this runs 1 hour later
   schedule:
-    - cron: '0 7 * * 1-5'  # Monday-Friday at 7:00 AM UTC
-    - cron: '30 8 * * 0,6'  # Saturday-Sunday at 8:30 AM UTC (9:30 AM CET)
+    - cron: '47 6 * * 1-5'  # Mon-Fri 6:47 UTC (off the hour to reduce GitHub queue delays)
+    - cron: '17 8 * * 0,6'  # Sat-Sun 8:17 UTC (9:17 AM CET)
 
   # Allow manual trigger for testing
   workflow_dispatch:
